@@ -113,10 +113,16 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
       if (!form.question_ar.trim() || !form.question_fr.trim()) throw new Error("question");
       if (["single_choice","multiple_choice"].includes(form.question_type) && !form.options.filter(o=>o.label_ar.trim()&&o.label_fr.trim()&&o.value.trim()).length) throw new Error("options");
       let questionId = editing;
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user) throw new Error("AUTH_REQUIRED");
+      const { data: adminCheck, error: adminCheckError } = await supabase.from("admins").select("id").eq("id", authData.user.id).maybeSingle();
+      if (adminCheckError) throw adminCheckError;
+      if (!adminCheck) throw new Error("ADMIN_REQUIRED");
       if (editing) {
         const {error} = await supabase.from("survey_questions").update({question_ar:form.question_ar.trim(),question_fr:form.question_fr.trim(),question_type:form.question_type,required:form.required,active:form.active}).eq("id",editing);
         if(error) throw error;
-        await supabase.from("survey_options").delete().eq("question_id",editing);
+        const { error: deleteOptionsError } = await supabase.from("survey_options").delete().eq("question_id",editing);
+        if (deleteOptionsError) throw deleteOptionsError;
       } else {
         const maxOrder = Math.max(0,...questions.map(q=>q.sort_order||0));
         const {data,error} = await supabase.from("survey_questions").insert({survey_id:survey.id,question_ar:form.question_ar.trim(),question_fr:form.question_fr.trim(),question_type:form.question_type,required:form.required,active:form.active,sort_order:maxOrder+1}).select("id").single();
@@ -127,7 +133,11 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
         if(opts.length) { const {error}=await supabase.from("survey_options").insert(opts); if(error) throw error; }
       }
       await reloadQuestions(); reset();
-    } catch(e) { setAdminError(lang === "ar" ? "تعذر حفظ السؤال. تحقق من البيانات والصلاحيات." : "Impossible d'enregistrer la question. Vérifiez les données et les droits."); }
+    } catch(e) {
+      const msg = e?.message || "UNKNOWN_ERROR";
+      console.error("[survey-admin-save]", e);
+      setAdminError(lang === "ar" ? `تعذر حفظ السؤال: ${msg}` : `Impossible d'enregistrer la question : ${msg}`);
+    }
     finally { setSaving(false); }
   };
   const toggleQuestion = async (q) => { const {error}=await supabase.from("survey_questions").update({active:!q.active}).eq("id",q.id); if(error) setAdminError(error.message); else reloadQuestions(); };
