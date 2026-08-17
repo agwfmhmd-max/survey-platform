@@ -124,12 +124,31 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
         const { error: deleteOptionsError } = await supabase.from("survey_options").delete().eq("question_id",editing);
         if (deleteOptionsError) throw deleteOptionsError;
       } else {
+        if (!survey?.id) throw new Error("SURVEY_ID_MISSING");
         const maxOrder = Math.max(0,...questions.map(q=>q.sort_order||0));
-        const {data,error} = await supabase.from("survey_questions").insert({survey_id:survey.id,question_ar:form.question_ar.trim(),question_fr:form.question_fr.trim(),question_type:form.question_type,required:form.required,active:form.active,sort_order:maxOrder+1}).select("id").single();
-        if(error) throw error; questionId=data.id;
+        const insertPayload = {
+          survey_id: survey.id,
+          question_ar: form.question_ar.trim(),
+          question_fr: form.question_fr.trim(),
+          question_type: form.question_type,
+          required: form.required,
+          active: form.active,
+          sort_order: maxOrder + 1,
+        };
+        const { data, error } = await supabase
+          .from("survey_questions")
+          .insert(insertPayload)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data?.id) {
+          throw new Error("QUESTION_ID_NOT_RETURNED: la question a peut-être été créée, mais Supabase n'a pas retourné son ID. Vérifiez la policy SELECT de survey_questions.");
+        }
+        questionId = data.id;
       }
       if (["single_choice","multiple_choice"].includes(form.question_type)) {
-        const opts=form.options.filter(o=>o.label_ar.trim()&&o.label_fr.trim()&&o.value.trim()).map((o,i)=>({question_id:questionId,label_ar:o.label_ar.trim(),label_fr:o.label_fr.trim(),value:o.value.trim(),sort_order:i+1}));
+        if (!questionId) throw new Error("QUESTION_ID_MISSING");
+        const opts=form.options.filter(o=>String(o.label_ar||"").trim()&&String(o.label_fr||"").trim()&&String(o.value||"").trim()).map((o,i)=>({question_id:questionId,label_ar:String(o.label_ar).trim(),label_fr:String(o.label_fr).trim(),value:String(o.value).trim(),sort_order:i+1}));
         if(opts.length) { const {error}=await supabase.from("survey_options").insert(opts); if(error) throw error; }
       }
       await reloadQuestions(); reset();
