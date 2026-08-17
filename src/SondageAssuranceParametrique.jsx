@@ -103,7 +103,19 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
   const removeOption = (i) => setForm(f => ({...f, options:f.options.filter((_,idx)=>idx!==i).map((o,idx)=>({...o,sort_order:idx+1}))}));
 
   const reloadQuestions = async () => {
-    const { data, error } = await supabase.from("survey_questions").select("id, question_ar, question_fr, question_type, required, active, sort_order, survey_options(id,label_ar,label_fr,value,sort_order)").eq("survey_id", survey.id).order("sort_order", {ascending:true});
+    let surveyId = survey?.id;
+    if (!surveyId) {
+      const { data: surveyRow, error: surveyLookupError } = await supabase
+        .from("surveys")
+        .select("id")
+        .eq("slug", SURVEY_SLUG)
+        .eq("active", true)
+        .maybeSingle();
+      if (surveyLookupError) throw surveyLookupError;
+      surveyId = surveyRow?.id;
+    }
+    if (!surveyId) throw new Error("SURVEY_NOT_FOUND");
+    const { data, error } = await supabase.from("survey_questions").select("id, question_ar, question_fr, question_type, required, active, sort_order, survey_options(id,label_ar,label_fr,value,sort_order)").eq("survey_id", surveyId).order("sort_order", {ascending:true});
     if (error) throw error;
     setQuestions((data||[]).map(q=>({...q, options:(q.survey_options||[]).sort((a,b)=>a.sort_order-b.sort_order)})));
   };
@@ -124,10 +136,25 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
         const { error: deleteOptionsError } = await supabase.from("survey_options").delete().eq("question_id",editing);
         if (deleteOptionsError) throw deleteOptionsError;
       } else {
-        if (!survey?.id) throw new Error("SURVEY_ID_MISSING");
+        // The admin dashboard can open immediately after login, before the
+        // parent component has finished restoring the survey state. Resolve
+        // the survey by its stable slug as a fallback instead of failing with
+        // SURVEY_ID_MISSING.
+        let activeSurveyId = survey?.id;
+        if (!activeSurveyId) {
+          const { data: surveyRow, error: surveyLookupError } = await supabase
+            .from("surveys")
+            .select("id")
+            .eq("slug", SURVEY_SLUG)
+            .eq("active", true)
+            .maybeSingle();
+          if (surveyLookupError) throw surveyLookupError;
+          activeSurveyId = surveyRow?.id;
+        }
+        if (!activeSurveyId) throw new Error("SURVEY_NOT_FOUND");
         const maxOrder = Math.max(0,...questions.map(q=>q.sort_order||0));
         const insertPayload = {
-          survey_id: survey.id,
+          survey_id: activeSurveyId,
           question_ar: form.question_ar.trim(),
           question_fr: form.question_fr.trim(),
           question_type: form.question_type,
