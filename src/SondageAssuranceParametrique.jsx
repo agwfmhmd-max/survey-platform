@@ -400,20 +400,53 @@ export default function SondageStandalone() {
             return { question_id: q.id, answer_value: opt?.value ?? String(v), answer_text: opt ? oText(opt) : String(v) };
           });
         });
+      // Prefer the secure RPC when it exists. The original Supabase setup
+      // already permits anonymous INSERTs on these two tables, so fall back
+      // to direct inserts when the RPC has not yet been created. This keeps
+      // the existing database working while remaining compatible with the
+      // secure final schema.
       const { data: responseId, error: rpcErr } = await supabase.rpc("submit_survey_response", {
         p_survey_id: survey.id,
         p_respondent_id: respondentId,
         p_answers: payload,
       });
-      if (rpcErr) {
-        if (String(rpcErr.message || "").includes("DUPLICATE_RESPONSE")) {
-          setError(t.duplicate);
-          return;
-        }
-        throw rpcErr;
+      if (!rpcErr && responseId) {
+        setSubmitted(true);
+        return;
       }
-      if (!responseId) throw new Error("Response was not created");
-      setSubmitted(true);
+      const rpcMessage = String(rpcErr?.message || "");
+      if (rpcMessage.includes("DUPLICATE_RESPONSE")) {
+        setError(t.duplicate);
+        return;
+      }
+      // Fallback for projects using the original SUPABASE_SETUP.sql.
+      if (rpcErr) {
+        const { data: responseRow, error: responseErr } = await supabase
+          .from("survey_responses")
+          .insert({ survey_id: survey.id, respondent_id: respondentId })
+          .select("id")
+          .single();
+        if (responseErr) {
+          if (String(responseErr.message || "").includes("duplicate") || String(responseErr.message || "").includes("DUPLICATE_RESPONSE")) {
+            setError(t.duplicate);
+            return;
+          }
+          throw responseErr;
+        }
+        const answerRows = payload.map((a) => ({
+          response_id: responseRow.id,
+          question_id: a.question_id,
+          answer_value: a.answer_value,
+          answer_text: a.answer_text,
+        }));
+        if (answerRows.length) {
+          const { error: answersErr } = await supabase.from("survey_answers").insert(answerRows);
+          if (answersErr) throw answersErr;
+        }
+        setSubmitted(true);
+      } else {
+        throw new Error("Response was not created");
+      }
     } catch (e) {
       setError(t.errorSubmit);
     } finally {
