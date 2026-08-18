@@ -64,6 +64,21 @@ const T = {
 // Slug of the survey to render. Change if you manage several surveys.
 const SURVEY_SLUG = "assurance-parametrique-2026";
 
+const DEFAULT_QUESTIONS = [
+  { question_ar: "ما هو عمرك؟", question_fr: "Quel âge avez-vous ?", question_type: "number", required: true, options: [] },
+  { question_ar: "ما هو نشاطك الرئيسي؟", question_fr: "Quelle est votre activité principale ?", question_type: "single_choice", required: true, options: [
+    ["الزراعة", "Agriculture", "agriculture"], ["تربية المواشي", "Élevage", "elevage"], ["الزراعة وتربية المواشي", "Agriculture et élevage", "agri_elevage"], ["نشاط آخر", "Autre activité", "autre"]
+  ]},
+  { question_ar: "هل سبق أن تعرضت لخسائر بسبب مخاطر مناخية؟", question_fr: "Avez-vous déjà subi des pertes liées à des risques climatiques ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["لا", "Non", "non"]] },
+  { question_ar: "ما الخطر المناخي الأكثر تأثيرًا على نشاطك؟", question_fr: "Quel risque climatique affecte le plus votre activité ?", question_type: "single_choice", required: true, options: [["الجفاف", "Sécheresse", "secheresse"], ["الفيضانات", "Inondations", "inondations"], ["موجات الحرارة", "Vagues de chaleur", "chaleur"], ["الأمطار غير المنتظمة", "Pluviométrie irrégulière", "pluie_irreguliere"], ["آخر", "Autre", "autre"]] },
+  { question_ar: "هل تعرف التأمين البارامتري؟", question_fr: "Connaissez-vous l’assurance paramétrique ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["سمعت عنه فقط", "J’en ai seulement entendu parler", "entendu"], ["لا", "Non", "non"]] },
+  { question_ar: "هل تعتقد أن التأمين البارامتري يمكن أن يساعد في حماية النشاط من المخاطر المناخية؟", question_fr: "Pensez-vous que l’assurance paramétrique peut aider à protéger l’activité contre les risques climatiques ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["ربما", "Peut-être", "peut_etre"], ["لا", "Non", "non"]] },
+  { question_ar: "هل ستكون مستعدًا للاشتراك في تأمين بارامتري مناسب لنشاطك؟", question_fr: "Seriez-vous prêt à souscrire une assurance paramétrique adaptée à votre activité ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["ربما", "Peut-être", "peut_etre"], ["لا", "Non", "non"]] },
+  { question_ar: "ما العامل الأكثر أهمية بالنسبة لك عند اختيار هذا النوع من التأمين؟", question_fr: "Quel facteur serait le plus important pour vous dans le choix de cette assurance ?", question_type: "single_choice", required: true, options: [["السعر", "Le prix", "prix"], ["سرعة التعويض", "La rapidité de l’indemnisation", "rapidite"], ["وضوح المؤشر المناخي", "La clarté de l’indice climatique", "indice"], ["الثقة في شركة التأمين", "La confiance dans l’assureur", "confiance"]] },
+  { question_ar: "ما مستوى ثقتك في شركات التأمين لتقديم هذا المنتج؟", question_fr: "Quel est votre niveau de confiance envers les assureurs pour proposer ce produit ?", question_type: "single_choice", required: true, options: [["مرتفع", "Élevé", "eleve"], ["متوسط", "Moyen", "moyen"], ["ضعيف", "Faible", "faible"]] },
+  { question_ar: "ما اقتراحك أو ملاحظتك حول التأمين ضد المخاطر المناخية؟", question_fr: "Quelle est votre suggestion ou remarque concernant l’assurance contre les risques climatiques ?", question_type: "text", required: false, options: [] }
+];
+
 // Hidden admin-login trigger: N clicks on the platform name within a
 // time window. Adjust here only — never expose this as a visible button.
 const ADMIN_TRIGGER_CLICKS = 5;
@@ -88,7 +103,7 @@ const Card = ({ children, className = "" }) => (
 );
 
 
-function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults, results, participants, handleSignOut }) {
+function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults, results, participants, handleSignOut, handleBackToSurvey }) {
   const [tab, setTab] = useState("questions");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -97,6 +112,37 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
   const [weatherLocations, setWeatherLocations] = useState([]);
 
   const reset = () => { setEditing(null); setForm({ question_ar: "", question_fr: "", question_type: "single_choice", required: true, active: true, options: [{label_ar:"",label_fr:"",value:"",sort_order:1} ]}); setAdminError(null); };
+
+  const seedDefaultQuestions = async () => {
+    setSaving(true); setAdminError(null);
+    try {
+      let surveyId = survey?.id;
+      if (!surveyId) {
+        const { data, error } = await supabase.from("surveys").select("id").eq("slug", SURVEY_SLUG).eq("active", true).maybeSingle();
+        if (error) throw error;
+        surveyId = data?.id;
+      }
+      if (!surveyId) throw new Error("SURVEY_NOT_FOUND");
+      const { data: existing, error: existingError } = await supabase.from("survey_questions").select("id, question_fr").eq("survey_id", surveyId);
+      if (existingError) throw existingError;
+      const existingSet = new Set((existing || []).map(q => q.question_fr.trim().toLowerCase()));
+      let order = Math.max(0, ...(questions || []).map(q => q.sort_order || 0));
+      for (const q of DEFAULT_QUESTIONS) {
+        if (existingSet.has(q.question_fr.trim().toLowerCase())) continue;
+        order += 1;
+        const { data: inserted, error: qErr } = await supabase.from("survey_questions").insert({ survey_id: surveyId, question_ar: q.question_ar, question_fr: q.question_fr, question_type: q.question_type, required: q.required, active: true, sort_order: order }).select("id").single();
+        if (qErr || !inserted?.id) throw qErr || new Error("QUESTION_INSERT_FAILED");
+        if (q.options.length) {
+          const rows = q.options.map((o, i) => ({ question_id: inserted.id, label_ar: o[0], label_fr: o[1], value: o[2], sort_order: i + 1 }));
+          const { error: oErr } = await supabase.from("survey_options").insert(rows);
+          if (oErr) throw oErr;
+        }
+      }
+      await reloadQuestions();
+    } catch (e) {
+      setAdminError(e?.message || String(e));
+    } finally { setSaving(false); }
+  };
   const startEdit = (q) => { setEditing(q.id); setForm({ question_ar:q.question_ar, question_fr:q.question_fr, question_type:q.question_type, required:q.required, active:q.active, options:(q.options||[]).map((o,i)=>({...o,sort_order:i+1})) }); setAdminError(null); };
   const addOption = () => setForm(f => ({...f, options:[...(f.options||[]), {label_ar:"",label_fr:"",value:"",sort_order:(f.options||[]).length+1}]}));
   const updateOption = (i,key,value) => setForm(f => ({...f, options:f.options.map((o,idx)=>idx===i?{...o,[key]:value}:o)}));
@@ -197,11 +243,11 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
 
   const rByQ = questions.map(q=>({question:q,data:(results||[]).filter(r=>r.question_id===q.id).map(r=>({name:lang==="ar"?r.option_label_ar:r.option_label_fr,v:r.response_count,pct:r.percentage}))}));
   return <div className="mt-6 space-y-5">
-    <div className="flex items-center justify-between flex-wrap gap-3"><div><div className="text-lg font-bold" style={{color:C.navy}}>{lang==="ar"?"لوحة المشرف":"Tableau de bord administrateur"}</div><div className="text-xs" style={{color:C.slate}}>{lang==="ar"?"إدارة الاستبيان والنتائج والطقس":"Gestion du sondage, résultats et météo"}</div></div><div className="flex gap-2"><button onClick={loadResults} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{borderColor:C.border,color:C.blue}}><Repeat size={13} className="inline mr-1"/>{t.refresh}</button><button onClick={handleSignOut} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{borderColor:C.border,color:C.slate}}>{t.signOut}</button></div></div>
+    <div className="flex items-center justify-between flex-wrap gap-3"><div><div className="text-lg font-bold" style={{color:C.navy}}>{lang==="ar"?"لوحة المشرف":"Tableau de bord administrateur"}</div><div className="text-xs" style={{color:C.slate}}>{lang==="ar"?"إدارة الاستبيان والنتائج والطقس":"Gestion du sondage, résultats et météo"}</div></div><div className="flex gap-2"><button onClick={loadResults} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{borderColor:C.border,color:C.blue}}><Repeat size={13} className="inline mr-1"/>{t.refresh}</button><button onClick={handleBackToSurvey} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{borderColor:C.border,color:C.blue}}>{lang==="ar"?"العودة إلى الاستبيان":"Retour au sondage"}</button><button onClick={handleSignOut} className="px-3 py-2 rounded-lg text-xs font-semibold border" style={{borderColor:C.border,color:C.slate}}>{t.signOut}</button></div></div>
     <div className="grid grid-cols-3 gap-2"><button onClick={()=>setTab("questions")} className="py-2 rounded-lg text-xs font-semibold" style={tab==="questions"?{background:C.navy,color:C.white}:{background:C.white,color:C.slate,border:`1px solid ${C.border}`}}>{lang==="ar"?"الأسئلة":"Questions"}</button><button onClick={()=>setTab("results")} className="py-2 rounded-lg text-xs font-semibold" style={tab==="results"?{background:C.navy,color:C.white}:{background:C.white,color:C.slate,border:`1px solid ${C.border}`}}>{lang==="ar"?"النتائج":"Résultats"}</button><button onClick={()=>setTab("weather")} className="py-2 rounded-lg text-xs font-semibold" style={tab==="weather"?{background:C.navy,color:C.white}:{background:C.white,color:C.slate,border:`1px solid ${C.border}`}}>{lang==="ar"?"الطقس":"Météo"}</button></div>
     {adminError && <div className="rounded-lg p-3 text-xs" style={{background:"#FDECEC",color:C.red}}>{adminError}</div>}
     {tab==="questions" && <>
-      <Card><div className="flex items-center justify-between mb-4"><div className="font-semibold text-sm" style={{color:C.navy}}>{editing? (lang==="ar"?"تعديل السؤال":"Modifier la question"):(lang==="ar"?"إضافة سؤال":"Ajouter une question")}</div>{editing&&<button onClick={reset} className="text-xs"><X size={15}/></button>}</div>
+      <Card><div className="flex items-center justify-between mb-4"><div className="font-semibold text-sm" style={{color:C.navy}}>{editing? (lang==="ar"?"تعديل السؤال":"Modifier la question"):(lang==="ar"?"إضافة سؤال":"Ajouter une question")}</div><div className="flex items-center gap-2">{!editing&&<button onClick={seedDefaultQuestions} disabled={saving} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border disabled:opacity-50" style={{borderColor:C.border,color:C.blue}}>{lang==="ar"?"إضافة الأسئلة الجاهزة":"Ajouter les questions prêtes"}</button>}{editing&&<button onClick={reset} className="text-xs"><X size={15}/></button>}</div></div>
         <div className="grid md:grid-cols-2 gap-3"><input value={form.question_ar} onChange={e=>setForm({...form,question_ar:e.target.value})} placeholder="السؤال بالعربية" className="border rounded-lg px-3 py-2 text-sm"/><input value={form.question_fr} onChange={e=>setForm({...form,question_fr:e.target.value})} placeholder="Question en français" className="border rounded-lg px-3 py-2 text-sm"/></div>
         <div className="grid md:grid-cols-3 gap-3 mt-3"><select value={form.question_type} onChange={e=>setForm({...form,question_type:e.target.value})} className="border rounded-lg px-3 py-2 text-sm"><option value="single_choice">Single choice</option><option value="multiple_choice">Multiple choice</option><option value="text">Text</option><option value="number">Number</option></select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.required} onChange={e=>setForm({...form,required:e.target.checked})}/> {lang==="ar"?"إجباري":"Obligatoire"}</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})}/> {lang==="ar"?"نشط":"Actif"}</label></div>
         {["single_choice","multiple_choice"].includes(form.question_type)&&<div className="mt-4 space-y-2"><div className="flex justify-between"><span className="text-xs font-semibold">{lang==="ar"?"الاختيارات":"Options"}</span><button onClick={addOption} className="text-xs font-semibold" style={{color:C.blue}}><Plus size={13} className="inline"/> {lang==="ar"?"إضافة":"Ajouter"}</button></div>{form.options.map((o,i)=><div key={i} className="grid grid-cols-[1fr_1fr_110px_32px] gap-2"><input value={o.label_ar} onChange={e=>updateOption(i,"label_ar",e.target.value)} placeholder="العربية" className="border rounded px-2 py-1.5 text-xs"/><input value={o.label_fr} onChange={e=>updateOption(i,"label_fr",e.target.value)} placeholder="Français" className="border rounded px-2 py-1.5 text-xs"/><input value={o.value} onChange={e=>updateOption(i,"value",e.target.value)} placeholder="value" className="border rounded px-2 py-1.5 text-xs"/><button onClick={()=>removeOption(i)} className="border rounded"><Trash2 size={13} className="mx-auto"/></button></div>)}</div>}
@@ -351,7 +397,15 @@ export default function SondageStandalone() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     setIsAdmin(false);
+    setSession(null);
     setMode("form");
+  }
+
+  function handleBackToSurvey() {
+    // Keep the Supabase session alive so the admin can move between the
+    // public survey and the dashboard without being logged out.
+    setMode("form");
+    setAdminPromptOpen(false);
   }
 
   /* ---------------- Load aggregated results (public view — safe for anyone, but only surfaced in admin mode here) ---------------- */
@@ -390,6 +444,7 @@ export default function SondageStandalone() {
     setSubmitting(true);
     try {
       const respondentId = getRespondentId();
+      const responseId = crypto.randomUUID();
       const payload = questions
         .filter((q) => answers[q.id] !== undefined && answers[q.id] !== null && String(answers[q.id]).trim() !== "")
         .flatMap((q) => {
@@ -405,12 +460,12 @@ export default function SondageStandalone() {
       // to direct inserts when the RPC has not yet been created. This keeps
       // the existing database working while remaining compatible with the
       // secure final schema.
-      const { data: responseId, error: rpcErr } = await supabase.rpc("submit_survey_response", {
+      const { data: rpcResponseId, error: rpcErr } = await supabase.rpc("submit_survey_response", {
         p_survey_id: survey.id,
         p_respondent_id: respondentId,
         p_answers: payload,
       });
-      if (!rpcErr && responseId) {
+      if (!rpcErr && rpcResponseId) {
         setSubmitted(true);
         return;
       }
@@ -421,11 +476,9 @@ export default function SondageStandalone() {
       }
       // Fallback for projects using the original SUPABASE_SETUP.sql.
       if (rpcErr) {
-        const { data: responseRow, error: responseErr } = await supabase
+        const { error: responseErr } = await supabase
           .from("survey_responses")
-          .insert({ survey_id: survey.id, respondent_id: respondentId })
-          .select("id")
-          .single();
+          .insert({ id: responseId, survey_id: survey.id, respondent_id: respondentId });
         if (responseErr) {
           if (String(responseErr.message || "").includes("duplicate") || String(responseErr.message || "").includes("DUPLICATE_RESPONSE")) {
             setError(t.duplicate);
@@ -434,7 +487,7 @@ export default function SondageStandalone() {
           throw responseErr;
         }
         const answerRows = payload.map((a) => ({
-          response_id: responseRow.id,
+          response_id: responseId,
           question_id: a.question_id,
           answer_value: a.answer_value,
           answer_text: a.answer_text,
@@ -561,7 +614,7 @@ export default function SondageStandalone() {
         )}
 
         {mode === "results" && isAdmin && (
-          <AdminDashboard survey={survey} questions={questions} setQuestions={setQuestions} lang={lang} t={t} loadResults={loadResults} results={results} participants={participants} handleSignOut={handleSignOut} />
+          <AdminDashboard survey={survey} questions={questions} setQuestions={setQuestions} lang={lang} t={t} loadResults={loadResults} results={results} participants={participants} handleSignOut={handleSignOut} handleBackToSurvey={handleBackToSurvey} />
         )}
       </main>
 
