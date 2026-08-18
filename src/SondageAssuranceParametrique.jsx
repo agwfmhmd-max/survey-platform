@@ -314,7 +314,7 @@ export default function SondageStandalone() {
 
       const { data: qRows, error: qErr } = await supabase
         .from("survey_questions")
-        .select("id, question_ar, question_fr, sort_order, survey_options(id, label_ar, label_fr, value, sort_order)")
+        .select("id, question_ar, question_fr, question_type, required, sort_order, survey_options(id, label_ar, label_fr, value, sort_order)")
         .eq("survey_id", surveyRow.id)
         .eq("active", true)
         .order("sort_order", { ascending: true });
@@ -402,10 +402,18 @@ export default function SondageStandalone() {
   }
 
   function handleBackToSurvey() {
-    // Keep the Supabase session alive so the admin can move between the
-    // public survey and the dashboard without being logged out.
+    // Keep the Supabase session alive. This only changes the UI mode.
     setMode("form");
     setAdminPromptOpen(false);
+    setError(null);
+  }
+
+  function handleGoToAdminDashboard() {
+    if (isAdmin) {
+      setAdminPromptOpen(false);
+      setMode("results");
+      setError(null);
+    }
   }
 
   /* ---------------- Load aggregated results (public view — safe for anyone, but only surfaced in admin mode here) ---------------- */
@@ -455,6 +463,7 @@ export default function SondageStandalone() {
             return { question_id: q.id, answer_value: opt?.value ?? String(v), answer_text: opt ? oText(opt) : String(v) };
           });
         });
+      if (!payload.length) throw new Error("NO_ANSWERS");
       // Prefer the secure RPC when it exists. The original Supabase setup
       // already permits anonymous INSERTs on these two tables, so fall back
       // to direct inserts when the RPC has not yet been created. This keeps
@@ -494,14 +503,22 @@ export default function SondageStandalone() {
         }));
         if (answerRows.length) {
           const { error: answersErr } = await supabase.from("survey_answers").insert(answerRows);
-          if (answersErr) throw answersErr;
+          if (answersErr) {
+            // Best-effort cleanup so a failed submission does not leave an empty response.
+            await supabase.from("survey_responses").delete().eq("id", responseId);
+            throw answersErr;
+          }
         }
         setSubmitted(true);
       } else {
         throw new Error("Response was not created");
       }
     } catch (e) {
-      setError(t.errorSubmit);
+      console.error("[survey-submit]", e);
+      const msg = String(e?.message || "");
+      if (msg === "NO_ANSWERS") setError(t.required);
+      else if (msg.includes("DUPLICATE_RESPONSE")) setError(t.duplicate);
+      else setError(t.errorSubmit);
     } finally {
       setSubmitting(false);
     }
@@ -541,6 +558,15 @@ export default function SondageStandalone() {
               <Globe size={13} />
               {lang === "fr" ? "FR | العربية" : "العربية | FR"}
             </button>
+            {isAdmin && (
+              <button
+                onClick={handleGoToAdminDashboard}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border ml-2"
+                style={{ borderColor: C.white, color: C.white }}
+              >
+                {lang === "ar" ? "لوحة المشرف" : "Tableau de bord"}
+              </button>
+            )}
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: "Georgia, serif" }} onClick={handleTitleClick}>
             {t.title}
