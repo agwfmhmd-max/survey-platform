@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpRight, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
 
 const copy = {
   fr: {
@@ -32,7 +32,6 @@ export default function TeamSection({ members = [], lang = "fr" }) {
           <span className="member-status-dot" />
         </div>
         <div className="member-copy"><h3>{lang === "ar" ? member.name_ar : member.name_fr}</h3><p>{(lang === "ar" ? member.role_ar : member.role_fr) || t.fallbackRole}</p></div>
-        <ArrowUpRight className="member-arrow" size={16} />
       </article>)}
     </div>
   </section>;
