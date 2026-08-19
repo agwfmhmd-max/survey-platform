@@ -2,3 +2,8 @@ node_modules
 dist
 .env
 .env.local
+node_modules/
+dist/
+build/
+.env.*
+!.env.example
