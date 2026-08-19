@@ -1,43 +1,52 @@
-# Mise à jour de la plateforme d’enquête
+# تحديث منصة الاستبيان الأكاديمية
 
-## Résumé
+## النتيجة
 
-La plateforme a été refondue pour devenir une interface d’enquête académique bilingue, moderne, mobile-first et compatible avec l’architecture Supabase existante. Les tables, l’authentification administrateur, le mécanisme de session, l’envoi des réponses et la vue agrégée publique ont été conservés.
+تم تحسين المنصة لتبدو كمنصة بحث جامعي احترافية حول التأمين البارامتري والمخاطر المناخية في موريتانيا، مع الحفاظ على Supabase ونظام المشرف وإرسال الإجابات والنتائج المجمعة.
 
-## Fichiers modifiés
+## التحسينات الجديدة
 
-| Fichier | Modification |
+| المجال | ما تم تنفيذه |
 | --- | --- |
-| `src/SondageAssuranceParametrique.jsx` | Refonte complète de l’accueil, questionnaire par étapes, cartes de choix, progression, écran de succès, support français/arabe RTL, dashboard administrateur, gestion CRUD logique des questions, résultats agrégés et gestion d’erreurs. |
-| `src/index.css` | Nouvelle identité visuelle académique, responsive design mobile-first, états hover/focus/loading/error/success, cartes, navigation et dashboard. |
-| `src/lib/supabaseClient.js` | Ajout d’un client de repli qui évite l’écran blanc lorsque les variables Supabase manquent et affiche une erreur récupérable. Avec les variables présentes, le client Supabase réel est utilisé. |
-| `index.html` | Métadonnées, description, langue/direction initiales et titre mis à jour. |
-| `DEFAULT_SURVEY_QUESTIONS.sql` | Seed idempotent de 16 questions académiques bilingues et de leurs options, sans suppression de données existantes. |
-| `package.json` | Suppression de la dépendance Recharts devenue inutile après le remplacement par des graphiques CSS légers. |
-| `package-lock.json` | Régénéré après la mise à jour des dépendances. |
-| `UPDATES.md` | Présente note de livraison. |
+| الهوية البصرية | تم فصل الهوية إلى شعارين مستقلين: شعار المعهد الرسمي المرفق يظهر في الرأس والتذييل، وشعار فكرة المشروع المتجهي يظهر في بطاقة المشروع داخل القسم الرئيسي. لا يتم دمج الشعارين أو تركيب أحدهما فوق الآخر. |
+| التذييل | تذييل احترافي يعرض هوية المعهد بوضوح وعبارة **Développé par MDA** داخل شارة مستقلة. |
+| أعضاء الفريق | قسم عام جذاب لأعضاء الفريق النشطين، مع الاسم والدور والصورة. أضيفت لوحة مشرف لإضافة العضو وتعديله وتعطيله وترتيبه. |
+| الصور | يمكن للمشرف إدخال رابط صورة أو رفع صورة إلى bucket باسم `team-members` في Supabase Storage. |
+| منع إعادة الإرسال | بعد الإرسال الناجح يُسجّل مفتاح المشاركة في `localStorage`، وتظهر شاشة نجاح مقفلة بدل زر بدء استبيان جديد. كما يبقى منع التكرار في Supabase/RPC هو طبقة الحماية الأساسية. |
+| الأسئلة المكررة | قبل الحفظ يتم فحص تكرار السؤال بالعربية أو الفرنسية، وفحص تكرار نصوص الخيارات وقيمها. كما تعرض لوحة المشرف تحذيرًا وعلامة على الأسئلة المكررة الموجودة مسبقًا. |
+| الحفاظ على البيانات | حذف السؤال أو عضو الفريق يتم كتعطيل منطقي، مما يحافظ على السجل البحثي والإجابات السابقة. |
 
-## Fonctionnalités principales
+## الملفات المعدلة أو المضافة
 
-Le questionnaire affiche désormais une question à la fois, conserve les réponses pendant la navigation, indique la progression, distingue les questions obligatoires et facultatives et propose des cartes interactives pour les choix uniques ou multiples. Le formulaire fonctionne en français et en arabe avec adaptation automatique de la direction LTR/RTL.
+| الملف | الوصف |
+| --- | --- |
+| `src/SondageAssuranceParametrique.jsx` | دمج الشعار، الفريق، التذييل، منع الإرسال المتكرر، التحقق من التكرار، إدارة الفريق، رفع الصور، وتحسين رسائل الحالات. |
+| `src/components/TeamSection.jsx` | مكوّن بطاقات أعضاء الفريق للعرض العام. |
+| `src/index.css` | أنماط الشعار والتذييل وبطاقات الفريق ولوحة إدارة الصور والتحذيرات والاستجابة للهاتف. |
+| `public/iscae-official-logo.jpeg` | شعار المعهد الرسمي المرفق، ويُستخدم فقط في هوية المعهد والرأس والتذييل. |
+| `public/iscae-parametric-logo.svg` | شعار فكرة المشروع المتجهي، ويُستخدم فقط في بطاقة التأمين البارامتري والمخاطر المناخية. |
+| `TEAM_MEMBERS.sql` | SQL اختياري لإنشاء جدول أعضاء الفريق، سياسات RLS، bucket الصور وسياسات Storage. |
+| `UPDATES.md` | وثيقة التسليم الحالية. |
 
-L’espace administrateur conserve son accès caché par cinq clics sur le nom de la plateforme. Il conserve la session Supabase, permet d’ajouter, modifier, activer, désactiver et réordonner les questions, ainsi que de gérer leurs options. La suppression est volontairement traitée comme une désactivation afin de préserver l’historique des réponses de recherche.
+## إعداد Supabase المطلوب لأعضاء الفريق
 
-Les résultats restent accessibles uniquement dans l’espace administrateur et sont affichés sous forme agrégée. Les données individuelles et les identifiants des répondants ne sont pas exposés dans l’interface publique.
+نفّذ ملف `TEAM_MEMBERS.sql` مرة واحدة في مشروع Supabase الحالي. لا ينشئ مشروعًا جديدًا ولا يحذف الجداول أو البيانات الموجودة. يعتمد الملف على جدول `admins` الحالي وعلى أن المشرف المسجّل موجود في `admins.id`.
 
-## SQL nécessaire
+بعد التنفيذ سيستطيع المشرف إضافة بيانات الأعضاء من تبويب **Équipe / الفريق**، ورفع الصور إلى bucket `team-members`. إذا لم يتم تنفيذ الملف، ستبقى المنصة تعمل، لكن قسم الفريق لن يظهر ولن تتوفر وظائف إدارة الأعضاء.
 
-Aucune migration de schéma n’est requise. Le fichier `DEFAULT_SURVEY_QUESTIONS.sql` est facultatif : exécutez-le une seule fois dans Supabase si les questions académiques ne sont pas encore présentes. Il n’efface aucune question ni réponse existante et ignore les questions déjà enregistrées.
+## إعداد منع الإجابة الثانية
 
-## Validation
+يستخدم التطبيق مفتاحًا محليًا باسم `survey_submitted_assurance-parametrique-2026` لمنع المستخدم من العودة إلى شاشة البدء في الجهاز نفسه. كما يستمر استخدام `respondent_id` وRPC `submit_survey_response` أو القيود الحالية في Supabase لمنع التكرار على مستوى قاعدة البيانات. مسح بيانات المتصفح ليس آلية حماية يمكن الاعتماد عليها وحدها؛ لذلك يجب الإبقاء على حماية Supabase/RPC مفعلة.
 
-La commande `npm install --no-audit --no-fund` a été exécutée avec succès. La commande `npm run build` a également été exécutée avec succès. Le bundle JavaScript final est passé d’environ 773 kB à environ 193 kB minifiés après le retrait de Recharts et l’utilisation de graphiques CSS légers.
+## التحقق النهائي
 
-Pour lancer le projet :
+تم تشغيل `npm run build` بنجاح بعد التعديلات. كما تم فحص الفصل بين مساري الشعارين، ومنطق التحقق من التكرار، ومنطق تخزين حالة الإرسال، واستيرادات الفريق. المعاينة المحلية تعرض الواجهة حتى عند غياب متغيرات Supabase، وتظهر رسالة إعداد قابلة للمعالجة بدل الشاشة البيضاء.
+
+## التشغيل
 
 ```bash
 cp .env.example .env
-# renseigner VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY
+# أضف VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY
 npm install
 npm run dev
 ```
