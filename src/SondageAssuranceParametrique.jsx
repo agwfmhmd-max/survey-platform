@@ -76,7 +76,7 @@ const T = {
     duplicate: "Votre participation est déjà enregistrée. Une seule réponse est autorisée pour ce sondage.",
     alreadySubmittedTitle: "Participation déjà enregistrée",
     alreadySubmittedText: "Vous avez déjà envoyé votre réponse à ce sondage. Il n’est pas possible d’envoyer une seconde réponse.",
-    thanksTitle: "Merci pour votre participation !",
+    thanksTitle: "Merci pour votre participation",
     thanksText: "Votre réponse a été enregistrée avec succès. Merci pour votre contribution à cette étude académique.",
     backHome: "Retour à l’accueil",
     newResponse: "Répondre à nouveau",
