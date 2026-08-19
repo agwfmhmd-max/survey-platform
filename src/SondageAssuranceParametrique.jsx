@@ -27,8 +27,12 @@ const SUBMITTED_STORAGE_KEY = `survey_submitted_${SURVEY_SLUG}`;
 const ADMIN_TRIGGER_CLICKS = 5;
 const ADMIN_TRIGGER_WINDOW_MS = 3000;
 
+function cleanVisibleText(value) {
+  return String(value || "").replace(/[?؟]/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
 function normalizeForComparison(value) {
-  return String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return cleanVisibleText(value).normalize("NFKC").replace(/\s+/g, " ").toLocaleLowerCase();
 }
 
 function hasStoredSubmission() {
@@ -384,8 +388,10 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
   const saveQuestion = async () => {
     setSaving(true); setAdminError(null);
     try {
-      if (!form.question_ar.trim() || !form.question_fr.trim()) throw new Error(lang === "ar" ? "يرجى إدخال نص السؤال باللغتين." : "Saisissez le texte de la question dans les deux langues.");
-      const duplicateQuestion = questions.some((question) => question.id !== editing && (normalizeForComparison(question.question_ar) === normalizeForComparison(form.question_ar) || normalizeForComparison(question.question_fr) === normalizeForComparison(form.question_fr)));
+      const cleanQuestionAr = cleanVisibleText(form.question_ar);
+      const cleanQuestionFr = cleanVisibleText(form.question_fr);
+      if (!cleanQuestionAr || !cleanQuestionFr) throw new Error(lang === "ar" ? "يرجى إدخال نص السؤال باللغتين." : "Saisissez le texte de la question dans les deux langues.");
+      const duplicateQuestion = questions.some((question) => question.id !== editing && (normalizeForComparison(question.question_ar) === normalizeForComparison(cleanQuestionAr) || normalizeForComparison(question.question_fr) === normalizeForComparison(cleanQuestionFr)));
       if (duplicateQuestion) throw new Error(t.duplicateQuestion);
       const choiceQuestion = ["single_choice", "multiple_choice"].includes(form.question_type);
       const options = form.options.filter((o) => o.label_ar?.trim() && o.label_fr?.trim() && o.value?.trim()).map((o, index) => ({ label_ar: o.label_ar.trim(), label_fr: o.label_fr.trim(), value: o.value.trim(), sort_order: index + 1 }));
@@ -400,14 +406,14 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
       if (!admin) throw new Error("ADMIN_REQUIRED");
       let questionId = editing;
       if (editing) {
-        const { error } = await supabase.from("survey_questions").update({ question_ar: form.question_ar.trim(), question_fr: form.question_fr.trim(), question_type: form.question_type, required: form.required, active: form.active }).eq("id", editing);
+        const { error } = await supabase.from("survey_questions").update({ question_ar: cleanQuestionAr, question_fr: cleanQuestionFr, question_type: form.question_type, required: form.required, active: form.active }).eq("id", editing);
         if (error) throw error;
         const { error: deleteError } = await supabase.from("survey_options").delete().eq("question_id", editing);
         if (deleteError) throw deleteError;
       } else {
         const id = await surveyId();
         const maxOrder = Math.max(0, ...questions.map((q) => q.sort_order || 0));
-        const { data, error } = await supabase.from("survey_questions").insert({ survey_id: id, question_ar: form.question_ar.trim(), question_fr: form.question_fr.trim(), question_type: form.question_type, required: form.required, active: form.active, sort_order: maxOrder + 1 }).select("id").single();
+        const { data, error } = await supabase.from("survey_questions").insert({ survey_id: id, question_ar: cleanQuestionAr, question_fr: cleanQuestionFr, question_type: form.question_type, required: form.required, active: form.active, sort_order: maxOrder + 1 }).select("id").single();
         if (error) throw error;
         questionId = data?.id;
       }
@@ -435,10 +441,6 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
     if (!window.confirm(t.confirmDelete)) return;
     setAdminError(null);
     try {
-      const { error: answersError } = await supabase.from("survey_answers").delete().eq("question_id", q.id);
-      if (answersError && !String(answersError.message || "").toLowerCase().includes("does not exist")) throw answersError;
-      const { error: optionsError } = await supabase.from("survey_options").delete().eq("question_id", q.id);
-      if (optionsError) throw optionsError;
       const { error: questionError } = await supabase.from("survey_questions").delete().eq("id", q.id);
       if (questionError) throw questionError;
       await reloadQuestions();
@@ -538,7 +540,7 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
             </Card>
       {(duplicateQuestionIds.size > 0 || duplicateOptionQuestionIds.size > 0) && <div className="validation-banner"><Info size={16} /><span>{t.duplicatesFound}</span></div>}
       <div className="question-list">{questions.length === 0 && <Card>
-<div className="empty-state"><ClipboardList size={28} /><p>{t.noQuestions}</p></div></Card>}{questions.map((q, index) => <Card key={q.id} className={!q.active ? "is-muted" : ""}><div className="question-row"><GripVertical className="drag-icon" size={17} /><div className="question-row-copy"><span className="question-index">{String(index + 1).padStart(2, "0")}</span><strong>{lang === "ar" ? q.question_ar : q.question_fr}</strong><small>{q.question_type} · {q.required ? t.required : t.optional} · {q.active ? t.active : t.inactive}{(duplicateQuestionIds.has(q.id) || duplicateOptionQuestionIds.has(q.id)) && <em className="duplicate-badge">{t.duplicateBadge}</em>}</small>
+<div className="empty-state"><ClipboardList size={28} /><p>{t.noQuestions}</p></div></Card>}{questions.map((q, index) => <Card key={q.id} className={!q.active ? "is-muted" : ""}><div className="question-row"><GripVertical className="drag-icon" size={17} /><div className="question-row-copy"><span className="question-index">{String(index + 1).padStart(2, "0")}</span><strong>{cleanVisibleText(lang === "ar" ? q.question_ar : q.question_fr)}</strong><small>{q.question_type} · {q.required ? t.required : t.optional} · {q.active ? t.active : t.inactive}{(duplicateQuestionIds.has(q.id) || duplicateOptionQuestionIds.has(q.id)) && <em className="duplicate-badge">{t.duplicateBadge}</em>}</small>
 </div><div className="row-actions"><button type="button" className="icon-button" onClick={() => moveQuestion(q, -1)} disabled={index === 0} aria-label={t.moveUp}><ChevronLeft className="rotate-90" size={15} /></button><button type="button" className="icon-button" onClick={() => moveQuestion(q, 1)} disabled={index === questions.length - 1} aria-label={t.moveDown}><ChevronRight className="rotate-90" size={15} /></button><button type="button" className="icon-button" onClick={() => startEdit(q)} aria-label={t.editQuestion}><Pencil size={15} /></button><button type="button" className="icon-button" onClick={() => toggleQuestion(q)} aria-label={q.active ? t.disable : t.enable}>{q.active ? <EyeOff size={15} /> : <Eye size={15} />}</button><button type="button" className="icon-button danger" onClick={() => deleteQuestion(q)} aria-label={t.delete}><Trash2 size={15} /></button></div></div></Card>)}</div>
         </div>}
     {tab === "team" && <div className="team-admin-panel">
@@ -552,7 +554,7 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
       <div className="team-admin-list">{teamMembers.length === 0 && <Card><div className="empty-state"><UsersRound size={28} /><p>{t.noMembers}</p></div></Card>}{teamMembers.map((member) => <Card key={member.id} className={member.active === false ? "is-muted" : ""}><div className="team-admin-row"><div className="member-mini-avatar">{member.image_url ? <img src={member.image_url} alt="" /> : <UsersRound size={18} />}</div><div className="question-row-copy"><strong>{lang === "ar" ? member.name_ar : member.name_fr}</strong><small>{(lang === "ar" ? member.role_ar : member.role_fr) || t.teamTitle} · {member.active === false ? t.inactive : t.active}</small></div><div className="row-actions"><button type="button" className="icon-button" onClick={() => startMemberEdit(member)} aria-label={t.editMember}><Pencil size={15} /></button><button type="button" className="icon-button danger" onClick={() => removeMember(member)} aria-label={t.disable}><EyeOff size={15} /></button></div></div></Card>)}</div>
     </div>}
     {tab === "results" && <div className="results-panel"><Card className="results-summary">
-<div className="results-summary-icon"><BarChart3 size={22} /></div><div><span className="eyebrow">{t.results}</span><h3>{participants} {t.participants}</h3><p>{lang === "ar" ? "النتائج المعروضة مجمعة ولا تتضمن أي بيانات شخصية." : "Les résultats sont agrégés et ne contiennent aucune donnée personnelle."}</p></div><button type="button" className="button button-secondary" onClick={loadResults}><RefreshCw size={15} />{lang === "ar" ? "تحديث" : "Actualiser"}</button></Card><div className="result-grid">{resultGroups.map(({ question, data }) => <Card key={question.id}><h3 className="result-question">{lang === "ar" ? question.question_ar : question.question_fr}</h3><ResultChart data={data} emptyLabel={t.noResults} /></Card>)}</div></div>}
+<div className="results-summary-icon"><BarChart3 size={22} /></div><div><span className="eyebrow">{t.results}</span><h3>{participants} {t.participants}</h3><p>{lang === "ar" ? "النتائج المعروضة مجمعة ولا تتضمن أي بيانات شخصية." : "Les résultats sont agrégés et ne contiennent aucune donnée personnelle."}</p></div><button type="button" className="button button-secondary" onClick={loadResults}><RefreshCw size={15} />{lang === "ar" ? "تحديث" : "Actualiser"}</button></Card><div className="result-grid">{resultGroups.map(({ question, data }) => <Card key={question.id}><h3 className="result-question">{cleanVisibleText(lang === "ar" ? question.question_ar : question.question_fr)}</h3><ResultChart data={data} emptyLabel={t.noResults} /></Card>)}</div></div>}
     {tab === "weather" && <Card><div className="section-title"><div className="title-icon"><CloudRain size={18} /></div><div><span className="eyebrow">{t.weather}</span><h3>{lang === "ar" ? "مناطق بيانات الطقس" : "Régions de données météo"}</h3></div></div>{weatherLocations.length === 0 ? <div className="empty-state"><CloudRain size={28} /><p>{t.noWeather}</p><small>{t.addWeatherHint}</small></div> : <div className="weather-list">{weatherLocations.map((location) => <div key={location.id} className="weather-row"><span>{location.wilaya} — {location.location_name}</span><small>{location.latitude}, {location.longitude}</small></div>)}</div>}</Card>}
   </section>;
 }
@@ -583,8 +585,8 @@ export default function SondageStandalone() {
   const t = T[lang];
   const dir = t.dir;
 
-  const qText = useCallback((q) => lang === "ar" ? q.question_ar : q.question_fr, [lang]);
-  const oText = useCallback((o) => lang === "ar" ? o.label_ar : o.label_fr, [lang]);
+  const qText = useCallback((q) => cleanVisibleText(lang === "ar" ? q.question_ar : q.question_fr), [lang]);
+  const oText = useCallback((o) => cleanVisibleText(lang === "ar" ? o.label_ar : o.label_fr), [lang]);
   const currentQuestion = questions[currentStep];
   const requiredAnswered = useCallback((question) => {
     if (!question || !question.required) return true;
