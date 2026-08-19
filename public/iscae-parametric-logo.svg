@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ISCAE Parametric Research</title>
+  <desc id="desc">Shield protecting a climate droplet, crop leaves and research data points</desc>
+  <defs>
+    <linearGradient id="shield" x1="40" y1="24" x2="208" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2e78c9"/>
+      <stop offset="1" stop-color="#0b1e39"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="66" y1="170" x2="190" y2="217" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d2ac52"/>
+      <stop offset="1" stop-color="#a87d2f"/>
+    </linearGradient>
+  </defs>
+  <path d="M128 17c29 23 60 35 96 41v63c0 56-34 99-96 121-62-22-96-65-96-121V58c36-6 67-18 96-41Z" fill="#fff" stroke="#0b1e39" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M128 34c26 19 54 30 81 36v51c0 45-25 80-81 102-56-22-81-57-81-102V70c27-6 55-17 81-36Z" fill="url(#shield)"/>
+  <path d="M128 52v42" stroke="#9ec7ed" stroke-width="6" stroke-linecap="round"/>
+  <path d="M92 65v25M164 65v25M70 78v20M186 78v20" stroke="#9ec7ed" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="92" cy="98" r="5" fill="#dbeeff"/><circle cx="164" cy="98" r="5" fill="#dbeeff"/><circle cx="70" cy="103" r="5" fill="#dbeeff"/><circle cx="186" cy="103" r="5" fill="#dbeeff"/>
+  <path d="M128 76c-17 22-25 36-25 50a25 25 0 0 0 50 0c0-14-8-28-25-50Z" fill="#4d9be0" stroke="#dceeff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M128 168c-20-35-50-38-68-34 9 23 26 42 68 48 42-6 59-25 68-48-18-4-48-1-68 34Z" fill="#1d9a70" stroke="#b8efcf" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M128 177v24" stroke="#b8efcf" stroke-width="5" stroke-linecap="round"/>
+  <path d="M67 202c23 11 43 17 61 20 18-3 38-9 61-20" fill="none" stroke="url(#gold)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M78 216c18 8 35 13 50 16 15-3 32-8 50-16" fill="none" stroke="#e2bd61" stroke-width="5" stroke-linecap="round"/>
+</svg>
