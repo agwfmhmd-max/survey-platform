@@ -1,380 +1,272 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BarChart3,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ClipboardList,
-  CloudRain,
-  CloudSun,
-  Eye,
-  EyeOff,
-  Globe2,
-  Info,
-  Lock,
-  Minus,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Save,
-  Send,
-  Settings2,
-  ShieldCheck,
-  Sprout,
-  Trash2,
-  Users,
-  X,
-} from "lucide-react";
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import { BarChart3, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CloudRain, Eye, EyeOff, Globe2, GripVertical, ImagePlus, Info, LockKeyhole, LogOut, Pencil, Plus, RefreshCw, Save, ShieldCheck, Sprout, Trash2, TrendingUp, UserPlus, Users, UsersRound, X } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
+import TeamSection from "./components/TeamSection.jsx";
 
-const C = {
-  navy: "#0B1E39",
-  blue: "#1E5A9C",
-  blue2: "#3277BC",
-  blueSoft: "#EAF3FB",
-  sky: "#F3F8FD",
-  ivory: "#F7F9FC",
-  white: "#FFFFFF",
-  green: "#14855B",
-  greenSoft: "#E7F6EE",
-  gold: "#B38B3D",
-  goldSoft: "#F8F1E4",
-  ink: "#142033",
-  slate: "#5D6B7C",
-  muted: "#8A97A7",
-  border: "#DDE5EE",
-  red: "#BF3C35",
-  redSoft: "#FDEDEC",
+const COLORS = {
+  navy: "#0b1e39",
+  blue: "#1b4e8c",
+  sky: "#4d8ac7",
+  mist: "#eaf2fb",
+  ivory: "#f6f8fb",
+  white: "#ffffff",
+  green: "#1d8b62",
+  greenSoft: "#e6f6ee",
+  gold: "#b68b3c",
+  ink: "#182234",
+  slate: "#5b687b",
+  muted: "#8793a5",
+  border: "#dce4ee",
+  red: "#b53b42",
+  redSoft: "#fff0f1",
 };
 
-const PIE_COLORS = [C.blue, C.blue2, C.green, C.gold, C.red];
-
+const PIE_COLORS = [COLORS.blue, COLORS.sky, COLORS.gold, COLORS.green, "#8b78b8", "#d67b55"];
 const SURVEY_SLUG = "assurance-parametrique-2026";
+const SUBMITTED_STORAGE_KEY = `survey_submitted_${SURVEY_SLUG}`;
 const ADMIN_TRIGGER_CLICKS = 5;
 const ADMIN_TRIGGER_WINDOW_MS = 3000;
-const ANSWERS_STORAGE_KEY = `survey_answers_${SURVEY_SLUG}`;
-const STEP_STORAGE_KEY = `survey_step_${SURVEY_SLUG}`;
+
+function normalizeForComparison(value) {
+  return String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function hasStoredSubmission() {
+  try { return window.localStorage.getItem(SUBMITTED_STORAGE_KEY) === "true"; } catch { return false; }
+}
 
 const T = {
   fr: {
     dir: "ltr",
+    languageName: "Français",
     institute: "Institut Supérieur de Comptabilité et d’Administration des Entreprises (ISCAE)",
     kicker: "Projet de fin d’études · Banque & Assurance",
     title: "Enquête sur l’assurance paramétrique contre les risques climatiques en Mauritanie",
-    shortTitle: "Assurance paramétrique & risques climatiques",
-    subtitle:
-      "Ce questionnaire contribue à une étude académique sur la faisabilité d’un système d’assurance paramétrique pour les secteurs agricole et de l’élevage en Mauritanie.",
-    anonymous:
-      "Vos réponses sont enregistrées de manière anonyme et utilisées uniquement sous forme agrégée pour la recherche. Aucune donnée personnelle directement identifiable n’est demandée.",
-    duration: "Durée estimée",
-    minutes: "3 minutes",
-    questions: "questions",
+    subtitle: "Cette enquête fait partie d’une étude académique consacrée à la faisabilité d’un système d’assurance paramétrique pour les secteurs agricole et de l’élevage en Mauritanie.",
+    badge: "Projet de fin d’études — Banque & Assurance",
+    duration: "Durée estimée : 3 minutes",
+    questionsCount: "questions",
     start: "Commencer le questionnaire",
-    progress: "Progression",
+    intro: "Votre expérience de terrain contribue à une meilleure compréhension des risques climatiques, des pertes économiques et des attentes en matière de couverture assurantielle.",
+    anonymous: "Les réponses sont recueillies de manière anonyme et utilisées uniquement à des fins de recherche. Aucune information personnelle identifiable n’est demandée.",
     question: "Question",
+    of: "sur",
+    progress: "Progression",
     required: "Obligatoire",
     optional: "Facultatif",
-    previous: "Précédent",
     next: "Suivant",
+    previous: "Précédent",
     submit: "Envoyer mes réponses",
     submitting: "Envoi en cours…",
-    successTitle: "Merci pour votre participation !",
-    successText: "Votre réponse a été enregistrée avec succès.",
-    backHome: "Retour à l’accueil",
-    validation: "Veuillez répondre à toutes les questions obligatoires avant de continuer.",
-    loading: "Chargement du questionnaire…",
-    loadingAdmin: "Chargement de l’espace administrateur…",
-    genericError: "Une erreur est survenue.",
+    selected: "sélectionné",
+    choose: "Sélectionnez une réponse",
+    textPlaceholder: "Écrivez votre réponse ici…",
+    numberPlaceholder: "Votre réponse numérique",
+    requiredCurrent: "Merci de répondre à cette question obligatoire avant de continuer.",
+    requiredAll: "Merci de répondre à toutes les questions obligatoires avant d’envoyer.",
+    loading: "Chargement de l’enquête…",
+    loadingResults: "Chargement des résultats…",
     retry: "Réessayer",
+    errorLoad: "Une erreur est survenue lors du chargement de l’enquête.",
+    errorSubmit: "Une erreur est survenue lors de l’envoi. Veuillez réessayer.",
+    duplicate: "Vous avez déjà répondu à ce sondage.",
+    thanksTitle: "Merci pour votre participation !",
+    thanksText: "Votre réponse a été enregistrée avec succès et contribuera à cette étude académique.",
+    backHome: "Retour à l’accueil",
+    newResponse: "Répondre à nouveau",
+    submittedLock: "Votre participation est déjà enregistrée sur cet appareil. Une seule réponse est autorisée.",
+    team: "Équipe",
+    teamTitle: "Membres de l’équipe",
+    addMember: "Ajouter un membre",
+    editMember: "Modifier le membre",
+    memberNameAr: "Nom en arabe",
+    memberNameFr: "Nom en français",
+    memberRoleAr: "Fonction en arabe",
+    memberRoleFr: "Fonction en français",
+    memberImage: "Photo du membre",
+    imageUrl: "URL de l’image",
+    uploadImage: "Téléverser une image",
+    saveMember: "Enregistrer le membre",
+    noMembers: "Aucun membre n’est encore configuré.",
+    duplicateQuestion: "Cette question existe déjà dans le sondage.",
+    duplicateOption: "Cette option existe déjà pour cette question.",
+    duplicateTeamMember: "Ce membre existe déjà.",
+    duplicatesFound: "Des doublons ont été détectés. Modifiez ou désactivez les éléments signalés.",
+    duplicateBadge: "Doublon détecté",
     adminTitle: "Espace réservé à l’équipe du projet",
-    email: "Email",
-    password: "Mot de passe",
-    signIn: "Se connecter",
-    signOut: "Se déconnecter",
-    wrongCredentials: "Identifiants incorrects ou accès non autorisé.",
+    emailLabel: "Adresse e-mail",
+    passwordLabel: "Mot de passe",
+    adminSubmit: "Se connecter",
+    adminWrong: "Identifiants incorrects ou accès non autorisé.",
+    adminBack: "Fermer",
     dashboard: "Tableau de bord",
-    survey: "Questionnaire",
-    questionsTab: "Questions",
-    resultsTab: "Résultats",
-    weatherTab: "Météo",
-    settingsTab: "Paramètres",
+    backSurvey: "Retour au sondage",
+    signOut: "Se déconnecter",
+    questions: "Questions",
+    results: "Résultats",
+    weather: "Météo",
     participants: "Participants",
     activeQuestions: "Questions actives",
-    totalQuestions: "Questions",
     completion: "Taux de complétion",
-    completionHint: "Questions obligatoires renseignées",
-    manageQuestions: "Gestion des questions",
+    totalQuestions: "Questions au total",
     addQuestion: "Ajouter une question",
     editQuestion: "Modifier la question",
-    seedQuestions: "Ajouter les questions académiques",
-    arabicQuestion: "Question en arabe",
-    frenchQuestion: "Question en français",
+    readyQuestions: "Importer les questions académiques",
+    save: "Enregistrer",
+    add: "Ajouter",
+    cancel: "Annuler",
+    options: "Options de réponse",
+    addOption: "Ajouter une option",
     questionType: "Type de question",
-    single: "Choix unique",
-    multiple: "Choix multiples",
-    text: "Texte libre",
+    singleChoice: "Choix unique",
+    multipleChoice: "Choix multiples",
+    text: "Réponse libre",
     number: "Nombre",
     active: "Active",
-    reorder: "Réordonner",
-    options: "Options de réponse",
-    addOption: "Ajouter",
-    save: "Enregistrer",
-    cancel: "Annuler",
-    noOptions: "Aucune option",
-    noResults: "Aucun résultat agrégé disponible pour le moment.",
-    aggregatedOnly: "Les résultats ci-dessous sont agrégés et accessibles uniquement à l’équipe du projet.",
-    refresh: "Actualiser",
-    weather: "Régions météo",
-    noWeather: "Aucune région configurée dans Supabase.",
-    retrySurvey: "Recharger le questionnaire",
-    privacyTitle: "Confidentialité",
-    oneResponse: "Une seule réponse par navigateur est autorisée lorsque l’enquête est configurée ainsi.",
-    hiddenAdmin: "L’accès administrateur reste volontairement discret.",
-    instituteArabic: "المعهد العالي للمحاسبة وإدارة المؤسسات",
+    inactive: "Inactive",
+    delete: "Supprimer",
+    disable: "Désactiver",
+    enable: "Activer",
+    moveUp: "Monter",
+    moveDown: "Descendre",
+    noQuestions: "Aucune question n’est encore configurée.",
+    noResults: "Aucun résultat agrégé disponible.",
+    noWeather: "Aucune région météo configurée.",
+    addWeatherHint: "Les régions peuvent être ajoutées depuis Supabase sans modifier l’interface.",
+    unknownError: "Une erreur est survenue.",
+    footer: "Étude de faisabilité de l’assurance paramétrique contre les risques climatiques en Mauritanie · ISCAE",
+    developedBy: "Développé par MDA",
+    confirmDelete: "Supprimer définitivement cette question ? Si elle est déjà utilisée dans des réponses, elle sera désactivée à la place.",
+    yes: "Oui",
+    no: "Non",
+    maybe: "Peut-être",
+    other: "Autre",
   },
   ar: {
     dir: "rtl",
+    languageName: "العربية",
     institute: "المعهد العالي للمحاسبة وإدارة المؤسسات",
-    kicker: "مشروع تخرج · البنوك والتأمين",
+    kicker: "مشروع تخرج · بنوك وتأمين",
     title: "استبيان حول التأمين البارامتري ضد المخاطر المناخية في موريتانيا",
-    shortTitle: "التأمين البارامتري والمخاطر المناخية",
-    subtitle:
-      "يساهم هذا الاستبيان في دراسة أكاديمية حول إمكانية تطبيق نظام للتأمين البارامتري في قطاعي الزراعة وتربية المواشي في موريتانيا.",
-    anonymous:
-      "تُسجَّل إجاباتكم بشكل مجهول وتُستخدم فقط في صورة نتائج مجمعة لأغراض البحث العلمي، ولا نطلب أي بيانات شخصية مُعرِّفة مباشرة.",
-    duration: "المدة المتوقعة",
-    minutes: "3 دقائق",
-    questions: "أسئلة",
+    subtitle: "هذا الاستبيان جزء من دراسة أكاديمية حول إمكانية تطبيق نظام للتأمين البارامتري في قطاعي الزراعة وتربية المواشي في موريتانيا.",
+    badge: "مشروع تخرج — بنوك وتأمين",
+    duration: "المدة التقديرية: 3 دقائق",
+    questionsCount: "أسئلة",
     start: "بدء الاستبيان",
-    progress: "التقدم",
+    intro: "تساهم خبرتكم الميدانية في فهم المخاطر المناخية والخسائر الاقتصادية وتوقعات المستفيدين من التغطية التأمينية.",
+    anonymous: "تُجمع الإجابات بشكل مجهول وتُستخدم لأغراض البحث العلمي فقط. لا نطلب أي معلومات شخصية مُعرِّفة.",
     question: "السؤال",
+    of: "من",
+    progress: "نسبة التقدم",
     required: "إجباري",
     optional: "اختياري",
-    previous: "السابق",
     next: "التالي",
-    submit: "إرسال الإجابات",
+    previous: "السابق",
+    submit: "إرسال إجاباتي",
     submitting: "جارٍ الإرسال…",
-    successTitle: "شكرًا لمشاركتكم!",
-    successText: "تم تسجيل إجابتكم بنجاح.",
-    backHome: "العودة إلى الصفحة الرئيسية",
-    validation: "يرجى الإجابة عن جميع الأسئلة الإجبارية قبل المتابعة.",
+    selected: "محدد",
+    choose: "اختر إجابة",
+    textPlaceholder: "اكتب إجابتك هنا…",
+    numberPlaceholder: "أدخل إجابة رقمية",
+    requiredCurrent: "يرجى الإجابة عن هذا السؤال الإجباري قبل المتابعة.",
+    requiredAll: "يرجى الإجابة عن جميع الأسئلة الإجبارية قبل الإرسال.",
     loading: "جارٍ تحميل الاستبيان…",
-    loadingAdmin: "جارٍ تحميل لوحة المشرف…",
-    genericError: "حدث خطأ غير متوقع.",
+    loadingResults: "جارٍ تحميل النتائج…",
     retry: "إعادة المحاولة",
+    errorLoad: "حدث خطأ أثناء تحميل الاستبيان.",
+    errorSubmit: "حدث خطأ أثناء الإرسال. حاول مجددًا.",
+    duplicate: "لقد أجبتم عن هذا الاستبيان من قبل.",
+    thanksTitle: "شكرًا لمشاركتكم!",
+    thanksText: "تم تسجيل إجابتكم بنجاح وستساهم في هذه الدراسة الأكاديمية.",
+    backHome: "العودة إلى الصفحة الرئيسية",
+    newResponse: "الإجابة مجددًا",
+    submittedLock: "تم تسجيل مشاركتكم على هذا الجهاز. يُسمح بإجابة واحدة فقط.",
+    team: "الفريق",
+    teamTitle: "أعضاء الفريق",
+    addMember: "إضافة عضو",
+    editMember: "تعديل العضو",
+    memberNameAr: "اسم العضو بالعربية",
+    memberNameFr: "اسم العضو بالفرنسية",
+    memberRoleAr: "الدور بالعربية",
+    memberRoleFr: "الدور بالفرنسية",
+    memberImage: "صورة العضو",
+    imageUrl: "رابط الصورة",
+    uploadImage: "رفع صورة",
+    saveMember: "حفظ العضو",
+    noMembers: "لا يوجد أعضاء مهيؤون بعد.",
+    duplicateQuestion: "هذا السؤال موجود مسبقًا في الاستبيان.",
+    duplicateOption: "هذا الخيار موجود مسبقًا لهذا السؤال.",
+    duplicateTeamMember: "هذا العضو موجود مسبقًا.",
+    duplicatesFound: "تم اكتشاف عناصر مكررة. يرجى تعديل العناصر المحددة أو تعطيلها.",
+    duplicateBadge: "مكرر",
     adminTitle: "منطقة مخصصة لفريق المشروع",
-    email: "البريد الإلكتروني",
-    password: "كلمة المرور",
-    signIn: "تسجيل الدخول",
-    signOut: "تسجيل الخروج",
-    wrongCredentials: "بيانات الدخول غير صحيحة أو الوصول غير مصرح به.",
+    emailLabel: "البريد الإلكتروني",
+    passwordLabel: "كلمة المرور",
+    adminSubmit: "تسجيل الدخول",
+    adminWrong: "بيانات الدخول غير صحيحة أو الوصول غير مصرح به.",
+    adminBack: "إغلاق",
     dashboard: "لوحة المشرف",
-    survey: "الاستبيان",
-    questionsTab: "الأسئلة",
-    resultsTab: "النتائج",
-    weatherTab: "الطقس",
-    settingsTab: "الإعدادات",
+    backSurvey: "العودة إلى الاستبيان",
+    signOut: "تسجيل الخروج",
+    questions: "الأسئلة",
+    results: "النتائج",
+    weather: "الطقس",
     participants: "المشاركون",
     activeQuestions: "الأسئلة النشطة",
-    totalQuestions: "الأسئلة",
     completion: "نسبة الإكمال",
-    completionHint: "الأسئلة الإجبارية التي تمت الإجابة عنها",
-    manageQuestions: "إدارة الأسئلة",
+    totalQuestions: "إجمالي الأسئلة",
     addQuestion: "إضافة سؤال",
     editQuestion: "تعديل السؤال",
-    seedQuestions: "إضافة الأسئلة الأكاديمية",
-    arabicQuestion: "السؤال بالعربية",
-    frenchQuestion: "السؤال بالفرنسية",
+    readyQuestions: "إدراج الأسئلة الأكاديمية الجاهزة",
+    save: "حفظ",
+    add: "إضافة",
+    cancel: "إلغاء",
+    options: "خيارات الإجابة",
+    addOption: "إضافة خيار",
     questionType: "نوع السؤال",
-    single: "اختيار واحد",
-    multiple: "اختيارات متعددة",
-    text: "نص حر",
+    singleChoice: "اختيار واحد",
+    multipleChoice: "اختيارات متعددة",
+    text: "إجابة نصية",
     number: "رقم",
     active: "نشط",
-    reorder: "ترتيب",
-    options: "خيارات الإجابة",
-    addOption: "إضافة",
-    save: "حفظ",
-    cancel: "إلغاء",
-    noOptions: "لا توجد خيارات",
-    noResults: "لا توجد نتائج مجمعة متاحة حاليًا.",
-    aggregatedOnly: "النتائج المعروضة مجمعة ومتاحة لفريق المشروع فقط.",
-    refresh: "تحديث",
-    weather: "مناطق الطقس",
-    noWeather: "لا توجد مناطق مُهيأة في Supabase.",
-    retrySurvey: "إعادة تحميل الاستبيان",
-    privacyTitle: "الخصوصية",
-    oneResponse: "يُسمح بإجابة واحدة لكل متصفح عندما تكون هذه القاعدة مفعلة في الاستبيان.",
-    hiddenAdmin: "يبقى دخول المشرف مخفيًا بشكل مقصود.",
-    instituteArabic: "المعهد العالي للمحاسبة وإدارة المؤسسات",
+    inactive: "غير نشط",
+    delete: "حذف",
+    disable: "تعطيل",
+    enable: "تفعيل",
+    moveUp: "تحريك للأعلى",
+    moveDown: "تحريك للأسفل",
+    noQuestions: "لا توجد أسئلة مُهيأة بعد.",
+    noResults: "لا تتوفر نتائج مجمعة بعد.",
+    noWeather: "لا توجد مناطق طقس مُهيأة.",
+    addWeatherHint: "يمكن إضافة المناطق من Supabase دون تعديل الواجهة.",
+    unknownError: "حدث خطأ غير متوقع.",
+    footer: "دراسة جدوى التأمين البارامتري ضد المخاطر المناخية في موريتانيا · المعهد العالي للمحاسبة وإدارة المؤسسات",
+    developedBy: "Développé par MDA",
+    confirmDelete: "هل تريد حذف هذا السؤال نهائيًا؟ إذا كان مستخدمًا في إجابات سابقة فسيتم تعطيله بدلًا من ذلك.",
+    yes: "نعم",
+    no: "لا",
+    maybe: "ربما",
+    other: "آخر",
   },
 };
 
 const DEFAULT_QUESTIONS = [
-  {
-    question_ar: "ما هو نشاطك الرئيسي؟",
-    question_fr: "Quelle est votre activité principale ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["الزراعة", "Agriculture", "agriculture"],
-      ["تربية المواشي", "Élevage", "elevage"],
-      ["الزراعة وتربية المواشي", "Agriculture et élevage", "agri_elevage"],
-      ["نشاط آخر", "Autre activité", "autre"],
-    ],
-  },
-  {
-    question_ar: "ما هو نطاق نشاطك؟",
-    question_fr: "Quelle est l’ampleur de votre activité ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["صغير", "Petite", "petite"],
-      ["متوسط", "Moyenne", "moyenne"],
-      ["كبير", "Grande", "grande"],
-    ],
-  },
-  {
-    question_ar: "هل سبق أن تعرضت لخسائر مرتبطة بالمخاطر المناخية؟",
-    question_fr: "Avez-vous déjà subi des pertes liées aux risques climatiques ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم", "Oui", "oui"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "ما الخطر المناخي الأكثر تأثيرًا على نشاطك؟",
-    question_fr: "Quel risque climatique affecte le plus votre activité ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["الجفاف", "Sécheresse", "secheresse"],
-      ["الفيضانات", "Inondations", "inondations"],
-      ["موجات الحرارة", "Vagues de chaleur", "chaleur"],
-      ["عدم انتظام الأمطار", "Pluviométrie irrégulière", "pluie_irreguliere"],
-      ["آخر", "Autre", "autre"],
-    ],
-  },
-  {
-    question_ar: "هل تعرف مفهوم التأمين البارامتري؟",
-    question_fr: "Connaissez-vous le principe de l’assurance paramétrique ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم، أعرفه", "Oui, je le connais", "oui"],
-      ["سمعت عنه فقط", "J’en ai seulement entendu parler", "entendu"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "هل تعتقد أن التأمين البارامتري يمكن أن يحد من آثار المخاطر المناخية؟",
-    question_fr: "Pensez-vous que l’assurance paramétrique peut réduire les impacts des risques climatiques ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم", "Oui", "oui"],
-      ["ربما", "Peut-être", "peut_etre"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "هل تعرضت خلال السنوات الأخيرة للجفاف أو نقص الأمطار بشكل مؤثر على نشاطك؟",
-    question_fr: "Votre activité a-t-elle été affectée récemment par la sécheresse ou une faible pluviométrie ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم", "Oui", "oui"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "هل تعتقد أن التعويض السريع المبني على مؤشر مناخي سيكون مفيدًا لك؟",
-    question_fr: "Une indemnisation rapide basée sur un indice climatique vous serait-elle utile ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["مفيد جدًا", "Très utile", "tres_utile"],
-      ["مفيد", "Utile", "utile"],
-      ["غير مفيد", "Peu utile", "peu_utile"],
-    ],
-  },
-  {
-    question_ar: "ما العامل الأكثر أهمية عند اختيار التأمين البارامتري؟",
-    question_fr: "Quel facteur serait le plus important dans le choix d’une assurance paramétrique ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["سعر القسط", "Le prix de la prime", "prix"],
-      ["سرعة التعويض", "La rapidité de l’indemnisation", "rapidite"],
-      ["وضوح المؤشر المناخي", "La clarté de l’indice climatique", "indice"],
-      ["الثقة في شركة التأمين", "La confiance envers l’assureur", "confiance"],
-    ],
-  },
-  {
-    question_ar: "ما مستوى ثقتك في شركات التأمين لتقديم هذا النوع من المنتجات؟",
-    question_fr: "Quel est votre niveau de confiance envers les assureurs pour proposer ce type de produit ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["مرتفع", "Élevé", "eleve"],
-      ["متوسط", "Moyen", "moyen"],
-      ["ضعيف", "Faible", "faible"],
-    ],
-  },
-  {
-    question_ar: "هل ستكون مستعدًا للاشتراك في تأمين بارامتري مناسب لنشاطك؟",
-    question_fr: "Seriez-vous prêt à souscrire une assurance paramétrique adaptée à votre activité ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم", "Oui", "oui"],
-      ["ربما", "Peut-être", "peut_etre"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "ما المبلغ الذي تعتبره مناسبًا كقسط تأمين دوري مقابل هذه التغطية؟",
-    question_fr: "Quel niveau de prime périodique vous semblerait acceptable pour cette couverture ?",
-    question_type: "single_choice",
-    required: false,
-    options: [
-      ["منخفض جدًا", "Très faible", "tres_faible"],
-      ["منخفض", "Faible", "faible"],
-      ["متوسط", "Moyen", "moyen"],
-      ["مرتفع", "Élevé", "eleve"],
-    ],
-  },
-  {
-    question_ar: "هل تعتقد أن الدولة أو الجهات الداعمة يجب أن تساهم في دعم أقساط هذا النوع من التأمين؟",
-    question_fr: "L’État ou les partenaires de développement devraient-ils contribuer au soutien des primes de ce type d’assurance ?",
-    question_type: "single_choice",
-    required: true,
-    options: [
-      ["نعم", "Oui", "oui"],
-      ["ربما", "Peut-être", "peut_etre"],
-      ["لا", "Non", "non"],
-    ],
-  },
-  {
-    question_ar: "ما اقتراحك أو ملاحظتك حول تطوير التأمين ضد المخاطر المناخية في موريتانيا؟",
-    question_fr: "Quelle est votre suggestion ou remarque pour développer l’assurance contre les risques climatiques en Mauritanie ?",
-    question_type: "text",
-    required: false,
-    options: [],
-  },
+  { question_ar: "كم عمرك؟", question_fr: "Quel âge avez-vous ?", question_type: "number", required: true, options: [] },
+  { question_ar: "ما هو قطاع نشاطك الرئيسي؟", question_fr: "Quel est votre secteur d’activité principal ?", question_type: "single_choice", required: true, options: [["الزراعة", "Agriculture", "agriculture"], ["تربية المواشي", "Élevage", "elevage"], ["الزراعة وتربية المواشي", "Agriculture et élevage", "agriculture_elevage"], ["نشاط آخر", "Autre activité", "autre"]] },
+  { question_ar: "في أي ولاية تمارس نشاطك؟", question_fr: "Dans quelle wilaya exercez-vous votre activité ?", question_type: "text", required: true, options: [] },
+  { question_ar: "هل تعرضت لخسائر بسبب مخاطر مناخية خلال السنوات الأخيرة؟", question_fr: "Avez-vous subi des pertes liées à des risques climatiques ces dernières années ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["لا", "Non", "non"]] },
+  { question_ar: "ما الخطر المناخي الأكثر تأثيرًا على نشاطك؟", question_fr: "Quel risque climatique affecte le plus votre activité ?", question_type: "single_choice", required: true, options: [["الجفاف", "Sécheresse", "secheresse"], ["الأمطار غير المنتظمة", "Pluviométrie irrégulière", "pluviometrie"], ["الفيضانات", "Inondations", "inondations"], ["موجات الحرارة", "Vagues de chaleur", "chaleur"], ["خطر آخر", "Autre risque", "autre"]] },
+  { question_ar: "ما مدى تكرار فترات الجفاف في منطقتك؟", question_fr: "À quelle fréquence les périodes de sécheresse surviennent-elles dans votre zone ?", question_type: "single_choice", required: true, options: [["نادرًا", "Rarement", "rarement"], ["أحيانًا", "Parfois", "parfois"], ["بشكل متكرر", "Fréquemment", "frequemment"], ["كل سنة تقريبًا", "Presque chaque année", "chaque_annee"]] },
+  { question_ar: "هل تؤثر الأمطار غير المنتظمة على إنتاجك أو دخلك؟", question_fr: "La pluviométrie irrégulière affecte-t-elle votre production ou vos revenus ?", question_type: "single_choice", required: true, options: [["بشكل كبير", "Fortement", "fortement"], ["بشكل متوسط", "Modérément", "modere"], ["بشكل ضعيف", "Faiblement", "faiblement"], ["لا تؤثر", "Pas du tout", "aucun"]] },
+  { question_ar: "ما طبيعة الخسارة الاقتصادية الأكثر شيوعًا لديك؟", question_fr: "Quelle est la perte économique la plus fréquente dans votre activité ?", question_type: "multiple_choice", required: true, options: [["انخفاض الإنتاج", "Baisse de production", "baisse_production"], ["نفوق المواشي", "Mortalité du bétail", "mortalite"], ["ارتفاع تكاليف العلف أو المدخلات", "Hausse du coût des intrants", "cout_intrants"], ["فقدان الدخل", "Perte de revenus", "perte_revenus"]] },
+  { question_ar: "هل تعرف مفهوم التأمين البارامتري؟", question_fr: "Connaissez-vous le principe de l’assurance paramétrique ?", question_type: "single_choice", required: true, options: [["نعم وأعرف فكرته", "Oui, j’en connais le principe", "oui_connu"], ["سمعت عنه فقط", "J’en ai seulement entendu parler", "entendu"], ["لا", "Non", "non"]] },
+  { question_ar: "هل تعتقد أن التأمين البارامتري يمكن أن يحمي نشاطك من المخاطر المناخية؟", question_fr: "Pensez-vous que l’assurance paramétrique peut protéger votre activité contre les risques climatiques ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["ربما", "Peut-être", "peut_etre"], ["لا أعرف", "Je ne sais pas", "inconnu"], ["لا", "Non", "non"]] },
+  { question_ar: "هل ستكون مستعدًا للاشتراك في تأمين بارامتري مناسب لنشاطك؟", question_fr: "Seriez-vous prêt à souscrire une assurance paramétrique adaptée à votre activité ?", question_type: "single_choice", required: true, options: [["نعم", "Oui", "oui"], ["ربما", "Peut-être", "peut_etre"], ["لا", "Non", "non"]] },
+  { question_ar: "ما مدى قدرتك على دفع قسط تأميني مناسب؟", question_fr: "Quelle serait votre capacité à payer une prime adaptée ?", question_type: "single_choice", required: true, options: [["ضعيفة", "Faible", "faible"], ["متوسطة", "Moyenne", "moyenne"], ["جيدة", "Bonne", "bonne"], ["تتوقف على السعر", "Cela dépend du prix", "depend_prix"]] },
+  { question_ar: "ما العامل الأكثر أهمية عند اختيار هذا النوع من التأمين؟", question_fr: "Quel facteur serait le plus important dans le choix de cette assurance ?", question_type: "single_choice", required: true, options: [["السعر", "Le prix", "prix"], ["سرعة التعويض", "La rapidité de l’indemnisation", "rapidite"], ["وضوح المؤشر المناخي", "La clarté de l’indice climatique", "indice"], ["الثقة في شركة التأمين", "La confiance dans l’assureur", "confiance"]] },
+  { question_ar: "ما مستوى ثقتك في شركات التأمين لتقديم هذا المنتج؟", question_fr: "Quel est votre niveau de confiance envers les assureurs pour proposer ce produit ?", question_type: "single_choice", required: true, options: [["مرتفع", "Élevé", "eleve"], ["متوسط", "Moyen", "moyen"], ["ضعيف", "Faible", "faible"]] },
+  { question_ar: "ما نوع الدعم الذي تحتاجه لتبني التأمين البارامتري؟", question_fr: "Quel type de soutien serait nécessaire pour adopter l’assurance paramétrique ?", question_type: "multiple_choice", required: true, options: [["التوعية والتكوين", "Sensibilisation et formation", "formation"], ["دعم حكومي", "Soutien public", "soutien_public"], ["قسط منخفض أو مدعوم", "Prime réduite ou subventionnée", "prime_subvention"], ["إجراءات تعويض واضحة", "Procédure d’indemnisation claire", "procedure_claire"]] },
+  { question_ar: "ما اقتراحك أو ملاحظتك حول التأمين ضد المخاطر المناخية؟", question_fr: "Quelle est votre suggestion concernant l’assurance contre les risques climatiques ?", question_type: "text", required: false, options: [] },
 ];
 
 function getRespondentId() {
@@ -387,771 +279,293 @@ function getRespondentId() {
   return id;
 }
 
-function loadLocalAnswers() {
-  try {
-    return JSON.parse(window.localStorage.getItem(ANSWERS_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function formatErrorMessage(lang, fallback, error) {
-  const raw = String(error?.message || "");
-  if (raw.includes("DUPLICATE_RESPONSE") || raw.toLowerCase().includes("duplicate")) {
-    return lang === "ar"
-      ? "لقد تم تسجيل إجابتك مسبقًا على هذا الاستبيان."
-      : "Votre réponse à ce questionnaire a déjà été enregistrée.";
-  }
-  return fallback;
-}
-
-function cn(...classes) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function Card({ children, className = "" }) {
-  return (
-    <div className={cn("rounded-3xl border bg-white shadow-sm", className)} style={{ borderColor: C.border }}>
-      {children}
-    </div>
-  );
+  return <div className={`surface-card ${className}`}>{children}</div>;
 }
 
-function ChoiceCard({ selected, disabled, icon, title, onClick, multiple = false }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "group w-full rounded-2xl border p-4 text-start transition duration-200",
-        "hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
-      )}
-      style={{
-        borderColor: selected ? C.blue : C.border,
-        background: selected ? C.blueSoft : C.white,
-        boxShadow: selected ? `0 0 0 2px ${C.blueSoft}` : undefined,
-      }}
-      aria-pressed={selected}
-    >
-      <div className="flex items-center gap-3">
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition"
-          style={{
-            borderColor: selected ? C.blue : C.border,
-            background: selected ? C.blue : C.sky,
-            color: selected ? C.white : C.slate,
-          }}
-        >
-          {selected ? <Check size={17} strokeWidth={2.8} /> : icon || (multiple ? <span className="text-xs">□</span> : <span className="text-xs">○</span>)}
-        </span>
-        <span className="min-w-0 flex-1 text-sm font-semibold" style={{ color: C.ink }}>
-          {title}
-        </span>
-      </div>
-    </button>
-  );
+function ErrorNotice({ message, onRetry, lang }) {
+  const retryLabel = lang === "ar" ? "إعادة المحاولة" : "Réessayer";
+  return <div className="error-notice" role="alert"><Info size={18} /><div><strong>{message}</strong><button type="button" onClick={onRetry}>{retryLabel}</button></div></div>;
 }
 
-function ErrorState({ lang, onRetry, message }) {
-  const t = T[lang];
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-16">
-      <Card className="p-6 text-center md:p-8">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: C.redSoft, color: C.red }}>
-          <X size={24} />
-        </div>
-        <h2 className="mb-2 text-lg font-bold" style={{ color: C.navy }}>
-          {message || t.genericError}
-        </h2>
-        <button
-          onClick={onRetry}
-          className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-          style={{ background: C.navy }}
-        >
-          <RefreshCw size={15} />
-          {t.retry}
-        </button>
-      </Card>
-    </div>
-  );
+function ChoiceCard({ option, selected, label, onClick, multiple }) {
+  return <button type="button" className={`choice-card ${selected ? "is-selected" : ""}`} onClick={onClick} aria-pressed={selected}>
+    <span className={`choice-indicator ${selected ? "is-selected" : ""}`}>{selected && <Check size={15} strokeWidth={3} />}</span>
+    <span className="choice-label">{label}</span>
+    {multiple && <span className="choice-hint">{selected ? "✓" : ""}</span>}
+  </button>;
 }
 
-function SuccessScreen({ lang }) {
-  const t = T[lang];
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      <Card className="relative overflow-hidden p-8 text-center md:p-12">
-        <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${C.blue}, ${C.green}, ${C.gold})` }} />
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full" style={{ background: C.greenSoft, color: C.green }}>
-          <CheckCircle2 size={42} strokeWidth={1.8} />
-        </div>
-        <div className="mb-2 text-2xl font-black md:text-3xl" style={{ color: C.navy }}>
-          {t.successTitle}
-        </div>
-        <p className="mx-auto max-w-lg text-sm leading-7" style={{ color: C.slate }}>
-          {t.successText}
-        </p>
-        <div className="mt-7 rounded-2xl p-4 text-xs leading-6" style={{ background: C.sky, color: C.slate }}>
-          {t.oneResponse}
-        </div>
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition hover:bg-slate-50"
-          style={{ borderColor: C.border, color: C.navy }}
-        >
-          {t.backHome}
-        </button>
-      </Card>
-    </div>
-  );
+function StatCard({ icon: Icon, label, value, tone = "blue" }) {
+  return <div className={`stat-card stat-${tone}`}><div className="stat-icon"><Icon size={18} /></div><div><div className="stat-value">{value}</div><div className="stat-label">{label}</div></div></div>;
 }
 
-function QuestionCard({ q, index, total, answer, setAnswer, lang }) {
-  const t = T[lang];
-  const selectedMultiple = Array.isArray(answer) ? answer : [];
-  return (
-    <Card className="overflow-hidden">
-      <div className="border-b px-5 py-5 md:px-7" style={{ borderColor: C.border, background: "linear-gradient(180deg,#FFFFFF,#F9FBFD)" }}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full px-3 py-1 text-[11px] font-extrabold tracking-[0.14em]" style={{ background: C.navy, color: C.white }}>
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
-            {t.question} {index + 1} / {total}
-          </span>
-          <span className="ms-auto rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: q.required ? C.redSoft : C.sky, color: q.required ? C.red : C.slate }}>
-            {q.required ? t.required : t.optional}
-          </span>
-        </div>
-        <h2 className="mt-4 text-base font-extrabold leading-8 md:text-lg" style={{ color: C.navy }}>
-          {lang === "ar" ? q.question_ar : q.question_fr}
-        </h2>
-        {lang === "ar" && q.question_fr && (
-          <p className="mt-1 text-xs leading-6" dir="ltr" style={{ color: C.muted }}>
-            {q.question_fr}
-          </p>
-        )}
-        {lang === "fr" && q.question_ar && (
-          <p className="mt-1 text-xs leading-6" dir="rtl" style={{ color: C.muted }}>
-            {q.question_ar}
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-3 p-5 md:p-7">
-        {q.question_type === "single_choice" &&
-          q.options.map((opt) => (
-            <ChoiceCard
-              key={opt.id}
-              selected={answer === opt.id}
-              title={lang === "ar" ? opt.label_ar : opt.label_fr}
-              onClick={() => setAnswer(opt.id)}
-            />
-          ))}
-
-        {q.question_type === "multiple_choice" &&
-          q.options.map((opt) => {
-            const selected = selectedMultiple.includes(opt.id);
-            return (
-              <ChoiceCard
-                key={opt.id}
-                selected={selected}
-                multiple
-                title={lang === "ar" ? opt.label_ar : opt.label_fr}
-                onClick={() =>
-                  setAnswer(
-                    selected
-                      ? selectedMultiple.filter((id) => id !== opt.id)
-                      : [...selectedMultiple, opt.id]
-                  )
-                }
-              />
-            );
-          })}
-
-        {q.question_type === "text" && (
-          <textarea
-            rows={6}
-            value={answer ?? ""}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder={lang === "ar" ? "اكتب ملاحظتك هنا…" : "Écrivez votre réponse ici…"}
-            className="w-full resize-y rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4"
-            style={{ borderColor: C.border, color: C.ink, outlineColor: C.blueSoft }}
-          />
-        )}
-
-        {q.question_type === "number" && (
-          <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            value={answer ?? ""}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder={lang === "ar" ? "أدخل رقمًا" : "Saisissez un nombre"}
-            className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4"
-            style={{ borderColor: C.border, color: C.ink }}
-          />
-        )}
-      </div>
-    </Card>
-  );
+function ResultChart({ data, emptyLabel }) {
+  if (!data.length) return <div className="empty-state compact"><BarChart3 size={25} /><p>{emptyLabel}</p></div>;
+  const maxValue = Math.max(...data.map((item) => Number(item.value) || 0), 1);
+  return <div className="result-bars">{data.map((item, index) => <div className="result-bar-row" key={`${item.name}-${index}`}><div className="result-bar-label"><span>{item.name || "—"}</span><strong>{item.percentage ?? 0}%</strong></div><div className="result-bar-track"><span style={{ width: `${Math.max(4, ((Number(item.value) || 0) / maxValue) * 100)}%`, background: PIE_COLORS[index % PIE_COLORS.length] }} /></div></div>)}</div>;
 }
 
-function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults, results, participants, handleSignOut, handleBackToSurvey }) {
+function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults, results, participants, handleSignOut, handleBackToSurvey, teamMembers, setTeamMembers }) {
   const [tab, setTab] = useState("questions");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [adminError, setAdminError] = useState(null);
+  const [form, setForm] = useState({ question_ar: "", question_fr: "", question_type: "single_choice", required: true, active: true, options: [{ label_ar: "", label_fr: "", value: "", sort_order: 1 }] });
   const [weatherLocations, setWeatherLocations] = useState([]);
-  const [form, setForm] = useState({
-    question_ar: "",
-    question_fr: "",
-    question_type: "single_choice",
-    required: true,
-    active: true,
-    options: [{ label_ar: "", label_fr: "", value: "", sort_order: 1 }],
-  });
+  const [editingMember, setEditingMember] = useState(null);
+  const [memberForm, setMemberForm] = useState({ name_ar: "", name_fr: "", role_ar: "", role_fr: "", image_url: "", sort_order: 1, active: true });
 
-  const reset = () => {
-    setEditing(null);
-    setAdminError(null);
-    setForm({
-      question_ar: "",
-      question_fr: "",
-      question_type: "single_choice",
-      required: true,
-      active: true,
-      options: [{ label_ar: "", label_fr: "", value: "", sort_order: 1 }],
+  const activeQuestions = questions.filter((q) => q.active).length;
+  const duplicateQuestionIds = new Set();
+  const duplicateOptionQuestionIds = new Set();
+  questions.forEach((question, index) => {
+    questions.slice(index + 1).forEach((other) => {
+      if (normalizeForComparison(question.question_ar) === normalizeForComparison(other.question_ar) || normalizeForComparison(question.question_fr) === normalizeForComparison(other.question_fr)) { duplicateQuestionIds.add(question.id); duplicateQuestionIds.add(other.id); }
     });
+    const optionLabels = (question.options || []).map((option) => `${normalizeForComparison(option.label_ar)}|${normalizeForComparison(option.label_fr)}`);
+    const optionValues = (question.options || []).map((option) => normalizeForComparison(option.value));
+    if (new Set(optionLabels).size !== optionLabels.length || new Set(optionValues).size !== optionValues.length) duplicateOptionQuestionIds.add(question.id);
+  });
+  const completionRate = participants > 0 && questions.length > 0 ? "—" : "0%";
+  const resetMember = () => { setEditingMember(null); setMemberForm({ name_ar: "", name_fr: "", role_ar: "", role_fr: "", image_url: "", sort_order: teamMembers.length + 1, active: true }); };
+  const reset = () => { setEditing(null); setAdminError(null); setForm({ question_ar: "", question_fr: "", question_type: "single_choice", required: true, active: true, options: [{ label_ar: "", label_fr: "", value: "", sort_order: 1 }] }); };
+
+  const surveyId = async () => {
+    if (survey?.id) return survey.id;
+    const { data, error } = await supabase.from("surveys").select("id").eq("slug", SURVEY_SLUG).eq("active", true).maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("SURVEY_NOT_FOUND");
+    return data.id;
   };
 
   const reloadQuestions = useCallback(async () => {
-    let surveyId = survey?.id;
-    if (!surveyId) {
-      const { data, error } = await supabase.from("surveys").select("id").eq("slug", SURVEY_SLUG).eq("active", true).maybeSingle();
-      if (error) throw error;
-      surveyId = data?.id;
-    }
-    if (!surveyId) throw new Error("SURVEY_NOT_FOUND");
-    const { data, error } = await supabase
-      .from("survey_questions")
-      .select("id, question_ar, question_fr, question_type, required, active, sort_order, survey_options(id,label_ar,label_fr,value,sort_order)")
-      .eq("survey_id", surveyId)
-      .order("sort_order", { ascending: true });
+    const id = await surveyId();
+    const { data, error } = await supabase.from("survey_questions").select("id, question_ar, question_fr, question_type, required, active, sort_order, survey_options(id,label_ar,label_fr,value,sort_order)").eq("survey_id", id).order("sort_order", { ascending: true });
     if (error) throw error;
-    setQuestions(
-      (data || []).map((q) => ({
-        ...q,
-        options: (q.survey_options || []).slice().sort((a, b) => a.sort_order - b.sort_order),
-      }))
-    );
-  }, [setQuestions, survey]);
+    setQuestions((data || []).map((q) => ({ ...q, options: (q.survey_options || []).slice().sort((a, b) => a.sort_order - b.sort_order) })));
+  }, [survey, setQuestions]);
 
   const seedDefaultQuestions = async () => {
-    setSaving(true);
-    setAdminError(null);
+    setSaving(true); setAdminError(null);
     try {
-      let surveyId = survey?.id;
-      if (!surveyId) {
-        const { data, error } = await supabase.from("surveys").select("id").eq("slug", SURVEY_SLUG).eq("active", true).maybeSingle();
-        if (error) throw error;
-        surveyId = data?.id;
-      }
-      const { data: existing, error: existingError } = await supabase.from("survey_questions").select("id, question_fr").eq("survey_id", surveyId);
-      if (existingError) throw existingError;
-
+      const id = await surveyId();
+      const { data: existing, error } = await supabase.from("survey_questions").select("id, question_fr").eq("survey_id", id);
+      if (error) throw error;
       const existingSet = new Set((existing || []).map((q) => q.question_fr.trim().toLowerCase()));
       let order = Math.max(0, ...questions.map((q) => q.sort_order || 0));
-
       for (const q of DEFAULT_QUESTIONS) {
         if (existingSet.has(q.question_fr.trim().toLowerCase())) continue;
         order += 1;
-        const { data: inserted, error: qErr } = await supabase
-          .from("survey_questions")
-          .insert({
-            survey_id: surveyId,
-            question_ar: q.question_ar,
-            question_fr: q.question_fr,
-            question_type: q.question_type,
-            required: q.required,
-            active: true,
-            sort_order: order,
-          })
-          .select("id")
-          .single();
-        if (qErr || !inserted?.id) throw qErr || new Error("QUESTION_INSERT_FAILED");
+        const { data: inserted, error: qError } = await supabase.from("survey_questions").insert({ survey_id: id, question_ar: q.question_ar, question_fr: q.question_fr, question_type: q.question_type, required: q.required, active: true, sort_order: order }).select("id").single();
+        if (qError) throw qError;
         if (q.options.length) {
-          const rows = q.options.map((o, i) => ({
-            question_id: inserted.id,
-            label_ar: o[0],
-            label_fr: o[1],
-            value: o[2],
-            sort_order: i + 1,
-          }));
-          const { error: oErr } = await supabase.from("survey_options").insert(rows);
-          if (oErr) throw oErr;
+          const rows = q.options.map(([label_ar, label_fr, value], index) => ({ question_id: inserted.id, label_ar, label_fr, value, sort_order: index + 1 }));
+          const { error: optionsError } = await supabase.from("survey_options").insert(rows);
+          if (optionsError) throw optionsError;
         }
       }
       await reloadQuestions();
     } catch (error) {
       console.error("[survey-admin-seed]", error);
-      setAdminError(String(error?.message || error));
-    } finally {
-      setSaving(false);
-    }
+      setAdminError(error?.message || t.unknownError);
+    } finally { setSaving(false); }
   };
 
-  const startEdit = (q) => {
-    setEditing(q.id);
-    setAdminError(null);
-    setForm({
-      question_ar: q.question_ar,
-      question_fr: q.question_fr,
-      question_type: q.question_type,
-      required: q.required,
-      active: q.active,
-      options:
-        (q.options || []).length > 0
-          ? q.options.map((o, i) => ({ ...o, sort_order: i + 1 }))
-          : [{ label_ar: "", label_fr: "", value: "", sort_order: 1 }],
-    });
-  };
+  const startEdit = (q) => { setEditing(q.id); setAdminError(null); setForm({ question_ar: q.question_ar || "", question_fr: q.question_fr || "", question_type: q.question_type, required: q.required, active: q.active, options: (q.options || []).map((o, i) => ({ ...o, sort_order: i + 1 })) }); };
+  const addOption = () => setForm((f) => ({ ...f, options: [...f.options, { label_ar: "", label_fr: "", value: "", sort_order: f.options.length + 1 }] }));
+  const updateOption = (index, key, value) => setForm((f) => ({ ...f, options: f.options.map((option, optionIndex) => optionIndex === index ? { ...option, [key]: value } : option) }));
+  const removeOption = (index) => setForm((f) => ({ ...f, options: f.options.filter((_, optionIndex) => optionIndex !== index).map((option, optionIndex) => ({ ...option, sort_order: optionIndex + 1 })) }));
 
   const saveQuestion = async () => {
-    setSaving(true);
-    setAdminError(null);
+    setSaving(true); setAdminError(null);
     try {
-      if (!form.question_ar.trim() || !form.question_fr.trim()) throw new Error("question");
-      if (["single_choice", "multiple_choice"].includes(form.question_type)) {
-        const validOptions = form.options.filter(
-          (o) => String(o.label_ar || "").trim() && String(o.label_fr || "").trim() && String(o.value || "").trim()
-        );
-        if (!validOptions.length) throw new Error("options");
-      }
-
+      if (!form.question_ar.trim() || !form.question_fr.trim()) throw new Error(lang === "ar" ? "يرجى إدخال نص السؤال باللغتين." : "Saisissez le texte de la question dans les deux langues.");
+      const duplicateQuestion = questions.some((question) => question.id !== editing && (normalizeForComparison(question.question_ar) === normalizeForComparison(form.question_ar) || normalizeForComparison(question.question_fr) === normalizeForComparison(form.question_fr)));
+      if (duplicateQuestion) throw new Error(t.duplicateQuestion);
+      const choiceQuestion = ["single_choice", "multiple_choice"].includes(form.question_type);
+      const options = form.options.filter((o) => o.label_ar?.trim() && o.label_fr?.trim() && o.value?.trim()).map((o, index) => ({ label_ar: o.label_ar.trim(), label_fr: o.label_fr.trim(), value: o.value.trim(), sort_order: index + 1 }));
+      if (choiceQuestion && !options.length) throw new Error(lang === "ar" ? "أضف خيار إجابة واحدًا على الأقل." : "Ajoutez au moins une option de réponse.");
+      const uniqueOptionLabels = new Set(options.map((option) => `${normalizeForComparison(option.label_ar)}|${normalizeForComparison(option.label_fr)}`));
+      const uniqueOptionValues = new Set(options.map((option) => normalizeForComparison(option.value)));
+      if (uniqueOptionLabels.size !== options.length || uniqueOptionValues.size !== options.length) throw new Error(t.duplicateOption);
       const { data: authData } = await supabase.auth.getUser();
       if (!authData?.user) throw new Error("AUTH_REQUIRED");
-
-      const { data: adminCheck, error: adminCheckError } = await supabase.from("admins").select("id").eq("id", authData.user.id).maybeSingle();
-      if (adminCheckError) throw adminCheckError;
-      if (!adminCheck) throw new Error("ADMIN_REQUIRED");
-
+      const { data: admin, error: adminErrorResponse } = await supabase.from("admins").select("id").eq("id", authData.user.id).maybeSingle();
+      if (adminErrorResponse) throw adminErrorResponse;
+      if (!admin) throw new Error("ADMIN_REQUIRED");
       let questionId = editing;
-
       if (editing) {
-        const { error } = await supabase
-          .from("survey_questions")
-          .update({
-            question_ar: form.question_ar.trim(),
-            question_fr: form.question_fr.trim(),
-            question_type: form.question_type,
-            required: form.required,
-            active: form.active,
-          })
-          .eq("id", editing);
+        const { error } = await supabase.from("survey_questions").update({ question_ar: form.question_ar.trim(), question_fr: form.question_fr.trim(), question_type: form.question_type, required: form.required, active: form.active }).eq("id", editing);
         if (error) throw error;
-        const { error: deleteOptionsError } = await supabase.from("survey_options").delete().eq("question_id", editing);
-        if (deleteOptionsError) throw deleteOptionsError;
+        const { error: deleteError } = await supabase.from("survey_options").delete().eq("question_id", editing);
+        if (deleteError) throw deleteError;
       } else {
-        let surveyId = survey?.id;
-        if (!surveyId) {
-          const { data: surveyRow, error: surveyLookupError } = await supabase
-            .from("surveys")
-            .select("id")
-            .eq("slug", SURVEY_SLUG)
-            .eq("active", true)
-            .maybeSingle();
-          if (surveyLookupError) throw surveyLookupError;
-          surveyId = surveyRow?.id;
-        }
-        if (!surveyId) throw new Error("SURVEY_NOT_FOUND");
+        const id = await surveyId();
         const maxOrder = Math.max(0, ...questions.map((q) => q.sort_order || 0));
-        const { data, error } = await supabase
-          .from("survey_questions")
-          .insert({
-            survey_id: surveyId,
-            question_ar: form.question_ar.trim(),
-            question_fr: form.question_fr.trim(),
-            question_type: form.question_type,
-            required: form.required,
-            active: form.active,
-            sort_order: maxOrder + 1,
-          })
-          .select("id")
-          .single();
+        const { data, error } = await supabase.from("survey_questions").insert({ survey_id: id, question_ar: form.question_ar.trim(), question_fr: form.question_fr.trim(), question_type: form.question_type, required: form.required, active: form.active, sort_order: maxOrder + 1 }).select("id").single();
         if (error) throw error;
-        questionId = data.id;
+        questionId = data?.id;
       }
-
-      if (["single_choice", "multiple_choice"].includes(form.question_type)) {
-        const options = form.options
-          .filter((o) => String(o.label_ar || "").trim() && String(o.label_fr || "").trim() && String(o.value || "").trim())
-          .map((o, i) => ({
-            question_id: questionId,
-            label_ar: String(o.label_ar).trim(),
-            label_fr: String(o.label_fr).trim(),
-            value: String(o.value).trim(),
-            sort_order: i + 1,
-          }));
-        if (options.length) {
-          const { error } = await supabase.from("survey_options").insert(options);
-          if (error) throw error;
-        }
+      if (choiceQuestion && options.length) {
+        const { error } = await supabase.from("survey_options").insert(options.map((o) => ({ ...o, question_id: questionId })));
+        if (error) throw error;
       }
-
-      await reloadQuestions();
-      reset();
+      await reloadQuestions(); reset();
     } catch (error) {
       console.error("[survey-admin-save]", error);
-      const msg = String(error?.message || error);
-      setAdminError(
-        lang === "ar"
-          ? `تعذر حفظ السؤال: ${msg}`
-          : `Impossible d’enregistrer la question : ${msg}`
-      );
-    } finally {
-      setSaving(false);
-    }
+      setAdminError(error?.message || t.unknownError);
+    } finally { setSaving(false); }
   };
 
   const toggleQuestion = async (q) => {
+    setAdminError(null);
     try {
       const { error } = await supabase.from("survey_questions").update({ active: !q.active }).eq("id", q.id);
       if (error) throw error;
       await reloadQuestions();
-    } catch (error) {
-      console.error("[survey-admin-toggle]", error);
-      setAdminError(String(error?.message || error));
-    }
+    } catch (error) { console.error("[survey-admin-toggle]", error); setAdminError(error?.message || t.unknownError); }
+  };
+
+  const deleteQuestion = async (q) => {
+    if (!window.confirm(t.confirmDelete)) return;
+    setAdminError(null);
+    try {
+      // Soft-delete by design: keeping the row protects existing answers and
+      // preserves the research audit trail while removing it from the public form.
+      const { error } = await supabase.from("survey_questions").update({ active: false }).eq("id", q.id);
+      if (error) throw error;
+      await reloadQuestions();
+    } catch (error) { console.error("[survey-admin-delete]", error); setAdminError(error?.message || t.unknownError); }
   };
 
   const moveQuestion = async (q, direction) => {
+    setAdminError(null);
     try {
       const sorted = [...questions].sort((a, b) => a.sort_order - b.sort_order);
-      const i = sorted.findIndex((x) => x.id === q.id);
-      const j = i + direction;
-      if (i < 0 || j < 0 || j >= sorted.length) return;
-      const a = sorted[i];
-      const b = sorted[j];
-      const first = await supabase.from("survey_questions").update({ sort_order: b.sort_order }).eq("id", a.id);
+      const index = sorted.findIndex((item) => item.id === q.id); const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= sorted.length) return;
+      const current = sorted[index]; const target = sorted[targetIndex];
+      const first = await supabase.from("survey_questions").update({ sort_order: target.sort_order }).eq("id", current.id);
       if (first.error) throw first.error;
-      const second = await supabase.from("survey_questions").update({ sort_order: a.sort_order }).eq("id", b.id);
+      const second = await supabase.from("survey_questions").update({ sort_order: current.sort_order }).eq("id", target.id);
       if (second.error) throw second.error;
       await reloadQuestions();
-    } catch (error) {
-      console.error("[survey-admin-reorder]", error);
-      setAdminError(String(error?.message || error));
-    }
+    } catch (error) { console.error("[survey-admin-reorder]", error); setAdminError(error?.message || t.unknownError); }
   };
 
-  useEffect(() => {
-    if (tab !== "weather") return;
-    let cancelled = false;
-    (async () => {
+  const reloadTeamMembers = useCallback(async () => {
+    const { data, error } = await supabase.from("team_members").select("id, name_ar, name_fr, role_ar, role_fr, image_url, sort_order, active").order("sort_order", { ascending: true });
+    if (error) throw error;
+    setTeamMembers(data || []);
+  }, [setTeamMembers]);
+
+  const startMemberEdit = (member) => {
+    setEditingMember(member.id);
+    setMemberForm({ name_ar: member.name_ar || "", name_fr: member.name_fr || "", role_ar: member.role_ar || "", role_fr: member.role_fr || "", image_url: member.image_url || "", sort_order: member.sort_order || 1, active: member.active !== false });
+    setAdminError(null);
+  };
+
+  const uploadMemberImage = async (file) => {
+    if (!file) return;
+    setSaving(true); setAdminError(null);
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("team-members").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
+      if (error) throw error;
+      const { data } = supabase.storage.from("team-members").getPublicUrl(path);
+      setMemberForm((current) => ({ ...current, image_url: data.publicUrl }));
+    } catch (error) { console.error("[team-member-upload]", error); setAdminError(error?.message || t.unknownError); }
+    finally { setSaving(false); }
+  };
+
+  const saveMember = async () => {
+    setSaving(true); setAdminError(null);
+    try {
+      if (!memberForm.name_ar.trim() || !memberForm.name_fr.trim()) throw new Error(lang === "ar" ? "يرجى إدخال اسم العضو باللغتين." : "Saisissez le nom du membre dans les deux langues.");
+      const duplicate = teamMembers.some((member) => member.id !== editingMember && (normalizeForComparison(member.name_ar) === normalizeForComparison(memberForm.name_ar) || normalizeForComparison(member.name_fr) === normalizeForComparison(memberForm.name_fr)));
+      if (duplicate) throw new Error(t.duplicateTeamMember);
+      const payload = { name_ar: memberForm.name_ar.trim(), name_fr: memberForm.name_fr.trim(), role_ar: memberForm.role_ar.trim(), role_fr: memberForm.role_fr.trim(), image_url: memberForm.image_url.trim() || null, sort_order: Number(memberForm.sort_order) || teamMembers.length + 1, active: memberForm.active };
+      const response = editingMember ? await supabase.from("team_members").update(payload).eq("id", editingMember) : await supabase.from("team_members").insert(payload);
+      if (response.error) throw response.error;
+      await reloadTeamMembers(); resetMember();
+    } catch (error) { console.error("[team-member-save]", error); setAdminError(error?.message || t.unknownError); }
+    finally { setSaving(false); }
+  };
+
+  const removeMember = async (member) => {
+    if (!window.confirm(lang === "ar" ? "هل تريد تعطيل هذا العضو؟" : "Désactiver ce membre ?")) return;
+    setAdminError(null);
+    try {
+      const { error } = await supabase.from("team_members").update({ active: false }).eq("id", member.id);
+      if (error) throw error;
+      await reloadTeamMembers();
+    } catch (error) { console.error("[team-member-delete]", error); setAdminError(error?.message || t.unknownError); }
+  };
+
+  const loadLocations = useCallback(async () => {
+    try {
       const { data, error } = await supabase.from("weather_locations").select("*").order("wilaya");
-      if (!cancelled) {
-        if (error) setAdminError(error.message);
-        else setWeatherLocations(data || []);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [tab]);
+      if (error) throw error;
+      setWeatherLocations(data || []);
+    } catch (error) { console.error("[survey-admin-weather]", error); setAdminError(error?.message || t.unknownError); }
+  }, [t.unknownError]);
+  useEffect(() => { if (tab === "weather") loadLocations(); }, [tab, loadLocations]);
 
-  const rByQ = useMemo(
-    () =>
-      questions.map((q) => ({
-        question: q,
-        data: (results || [])
-          .filter((r) => r.question_id === q.id)
-          .map((r) => ({
-            name: lang === "ar" ? r.option_label_ar : r.option_label_fr,
-            value: r.response_count,
-            pct: r.percentage,
-          })),
-      })),
-    [questions, results, lang]
-  );
+  const resultGroups = questions.map((question) => ({ question, data: (results || []).filter((row) => row.question_id === question.id).map((row) => ({ name: lang === "ar" ? row.option_label_ar : row.option_label_fr, value: row.response_count, percentage: row.percentage })) }));
+  useEffect(() => { if (tab === "team") reloadTeamMembers().catch((error) => { console.error("[team-members-reload]", error); setAdminError(error?.message || t.unknownError); }); }, [reloadTeamMembers, tab, t.unknownError]);
+  const tabs = [["questions", t.questions], ["team", t.team], ["results", t.results], ["weather", t.weather]];
 
-  const activeCount = questions.filter((q) => q.active).length;
-  const requiredCount = questions.filter((q) => q.required && q.active).length;
-
-  const stats = [
-    { label: t.participants, value: participants, icon: Users, tone: C.blue },
-    { label: t.totalQuestions, value: questions.length, icon: ClipboardList, tone: C.navy },
-    { label: t.activeQuestions, value: activeCount, icon: CheckCircle2, tone: C.green },
-    { label: t.completion, value: "—", icon: BarChart3, tone: C.gold },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="rounded-3xl p-6 text-white shadow-xl" style={{ background: `linear-gradient(135deg, ${C.navy} 0%, #173A64 60%, ${C.blue} 100%)` }}>
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="mb-2 text-xs font-semibold tracking-widest text-white/60">{t.dashboard}</div>
-            <h2 className="text-2xl font-black">{t.institute}</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-white/75">{t.aggregatedOnly}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={loadResults} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15">
-              <RefreshCw size={14} /> {t.refresh}
-            </button>
-            <button onClick={handleBackToSurvey} className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15">
-              {t.survey}
-            </button>
-            <button onClick={handleSignOut} className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15">
-              {t.signOut}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map(({ label, value, icon: Icon, tone }) => (
-          <Card key={label} className="p-4">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${tone}16`, color: tone }}>
-              <Icon size={18} />
-            </div>
-            <div className="text-2xl font-black" style={{ color: C.navy }}>{value}</div>
-            <div className="mt-1 text-xs font-semibold" style={{ color: C.muted }}>{label}</div>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {[
-          ["questions", t.questionsTab, ClipboardList],
-          ["results", t.resultsTab, BarChart3],
-          ["weather", t.weatherTab, CloudRain],
-          ["settings", t.settingsTab, Settings2],
-        ].map(([key, label, Icon]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className="rounded-xl border px-3 py-3 text-xs font-bold transition"
-            style={tab === key ? { borderColor: C.navy, background: C.navy, color: C.white } : { borderColor: C.border, background: C.white, color: C.slate }}
-          >
-            <Icon size={14} className="mb-1 inline-block" />
-            <span className="ms-1">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {adminError && (
-        <div className="rounded-2xl border p-4 text-xs" style={{ borderColor: "#F1C4C0", background: C.redSoft, color: C.red }}>
-          {adminError}
-        </div>
-      )}
-
-      {tab === "questions" && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-          <Card className="overflow-hidden">
-            <div className="border-b px-5 py-5 md:px-6" style={{ borderColor: C.border }}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-extrabold" style={{ color: C.navy }}>{t.manageQuestions}</h3>
-                  <p className="mt-1 text-xs" style={{ color: C.muted }}>{questions.length} {t.questions}</p>
-                </div>
-                <div className="flex gap-2">
-                  {!editing && (
-                    <button onClick={seedDefaultQuestions} disabled={saving} className="rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ borderColor: C.border, color: C.blue }}>
-                      <Plus size={14} className="me-1 inline" />
-                      {t.seedQuestions}
-                    </button>
-                  )}
-                  {editing && <button onClick={reset} className="rounded-xl border p-2" style={{ borderColor: C.border, color: C.slate }}><X size={14} /></button>}
-                </div>
-              </div>
-            </div>
-            <div className="divide-y" style={{ borderColor: C.border }}>
-              {questions.length === 0 && <div className="p-7 text-center text-xs" style={{ color: C.muted }}>{t.noResults}</div>}
-              {questions.map((q, i) => (
-                <div key={q.id} className="p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-black" style={{ background: C.sky, color: C.blue }}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold leading-6" style={{ color: C.navy }}>{lang === "ar" ? q.question_ar : q.question_fr}</div>
-                      <div className="mt-1 text-[11px]" style={{ color: C.muted }}>
-                        {q.question_type} · {q.required ? t.required : t.optional} · {q.active ? t.active : t.cancel}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <button onClick={() => moveQuestion(q, -1)} title={t.reorder} className="hidden rounded-lg border p-2 sm:block" style={{ borderColor: C.border }}><ChevronUp size={14} /></button>
-                      <button onClick={() => moveQuestion(q, 1)} title={t.reorder} className="hidden rounded-lg border p-2 sm:block" style={{ borderColor: C.border }}><ChevronDown size={14} /></button>
-                      <button onClick={() => startEdit(q)} className="rounded-lg border p-2" style={{ borderColor: C.border }}><Pencil size={14} /></button>
-                      <button onClick={() => toggleQuestion(q)} className="rounded-lg border p-2" style={{ borderColor: C.border }}>{q.active ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-5 md:p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: C.blueSoft, color: C.blue }}>
-                {editing ? <Pencil size={17} /> : <Plus size={17} />}
-              </div>
-              <div>
-                <h3 className="text-sm font-extrabold" style={{ color: C.navy }}>{editing ? t.editQuestion : t.addQuestion}</h3>
-                <p className="text-[11px]" style={{ color: C.muted }}>Supabase · survey_questions</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <input value={form.question_ar} onChange={(e) => setForm({ ...form, question_ar: e.target.value })} dir="rtl" placeholder={t.arabicQuestion} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none" style={{ borderColor: C.border }} />
-              <input value={form.question_fr} onChange={(e) => setForm({ ...form, question_fr: e.target.value })} placeholder={t.frenchQuestion} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none" style={{ borderColor: C.border }} />
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <select value={form.question_type} onChange={(e) => setForm({ ...form, question_type: e.target.value })} className="rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: C.border }}>
-                  <option value="single_choice">{t.single}</option>
-                  <option value="multiple_choice">{t.multiple}</option>
-                  <option value="text">{t.text}</option>
-                  <option value="number">{t.number}</option>
-                </select>
-                <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold" style={{ borderColor: C.border }}>
-                  <input type="checkbox" checked={form.required} onChange={(e) => setForm({ ...form, required: e.target.checked })} />
-                  {t.required}
-                </label>
-                <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold" style={{ borderColor: C.border }}>
-                  <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
-                  {t.active}
-                </label>
-              </div>
-
-              {["single_choice", "multiple_choice"].includes(form.question_type) && (
-                <div className="pt-2">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="text-xs font-extrabold" style={{ color: C.navy }}>{t.options}</div>
-                    <button onClick={() => setForm((f) => ({ ...f, options: [...f.options, { label_ar: "", label_fr: "", value: "", sort_order: f.options.length + 1 }] }))} className="text-xs font-bold" style={{ color: C.blue }}>
-                      <Plus size={13} className="me-1 inline" />{t.addOption}
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {form.options.map((o, i) => (
-                      <div key={`${i}-${o.id || "new"}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_110px_34px]">
-                        <input value={o.label_ar} onChange={(e) => setForm((f) => ({ ...f, options: f.options.map((x, idx) => idx === i ? { ...x, label_ar: e.target.value } : x) }))} dir="rtl" placeholder="العربية" className="rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: C.border }} />
-                        <input value={o.label_fr} onChange={(e) => setForm((f) => ({ ...f, options: f.options.map((x, idx) => idx === i ? { ...x, label_fr: e.target.value } : x) }))} placeholder="Français" className="rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: C.border }} />
-                        <input value={o.value} onChange={(e) => setForm((f) => ({ ...f, options: f.options.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x) }))} placeholder="value" className="rounded-lg border px-2.5 py-2 text-xs" style={{ borderColor: C.border }} />
-                        <button onClick={() => setForm((f) => ({ ...f, options: f.options.length === 1 ? f.options : f.options.filter((_, idx) => idx !== i) }))} className="rounded-lg border" style={{ borderColor: C.border, color: C.red }}><Trash2 size={13} className="mx-auto" /></button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <button onClick={saveQuestion} disabled={saving} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white disabled:opacity-60" style={{ background: C.navy }}>
-                <Save size={14} /> {saving ? t.submitting : t.save}
-              </button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === "results" && (
-        <div className="space-y-4">
-          <Card className="p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-extrabold" style={{ color: C.navy }}>{t.resultsTab}</div>
-                <div className="mt-1 text-xs" style={{ color: C.muted }}>{t.aggregatedOnly}</div>
-              </div>
-              <div className="rounded-xl px-4 py-3" style={{ background: C.blueSoft }}>
-                <div className="text-2xl font-black" style={{ color: C.blue }}>{participants}</div>
-                <div className="text-[11px] font-semibold" style={{ color: C.slate }}>{t.participants}</div>
-              </div>
-            </div>
-          </Card>
-          {rByQ.map(({ question, data }) => (
-            <Card key={question.id} className="p-5 md:p-6">
-              <div className="mb-2 text-sm font-extrabold leading-6" style={{ color: C.navy }}>{lang === "ar" ? question.question_ar : question.question_fr}</div>
-              {data.length ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={85} label={({ name, pct }) => `${name}: ${pct}%`}>
-                        {data.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="py-10 text-center text-xs" style={{ color: C.muted }}>{t.noOptions}</div>
-              )}
+  return <section className="admin-shell">
+    <div className="admin-heading"><div><span className="eyebrow">{t.dashboard}</span><h2>{lang === "ar" ? "إدارة المنصة والنتائج" : "Gestion de la plateforme et des résultats"}</h2><p>{survey?.title_fr || SURVEY_SLUG}</p></div><div className="admin-actions"><button type="button" className="button button-secondary" onClick={handleBackToSurvey}><ChevronLeft size={16} />{t.backSurvey}</button><button type="button" className="button button-secondary" onClick={handleSignOut}><LogOut size={16} />{t.signOut}</button></div></div>
+    <div className="stats-grid"><StatCard icon={Users} label={t.participants} value={participants} tone="blue" /><StatCard icon={ClipboardList} label={t.totalQuestions} value={questions.length} tone="navy" /><StatCard icon={CheckCircle2} label={t.activeQuestions} value={activeQuestions} tone="green" /><StatCard icon={TrendingUp} label={t.completion} value={completionRate} tone="gold" /></div>
+    <div className="admin-tabs">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{label}</button>)}</div>
+    {adminError && <div className="admin-error"><Info size={16} />{adminError}<button type="button" onClick={() => setAdminError(null)}><X size={15} /></button></div>}
+    {tab === "questions" && <div className="admin-content-grid">
+            <Card className="question-editor"><div className="editor-title">
+<div><span className="eyebrow">{editing ? t.editQuestion : t.addQuestion}</span><h3>{editing ? t.editQuestion : t.addQuestion}</h3></div>{editing ? <button type="button" className="icon-button" onClick={reset} aria-label={t.cancel}><X size={17} /></button> : <button type="button" className="button button-quiet" onClick={seedDefaultQuestions} disabled={saving}><Sprout size={15} />{t.readyQuestions}</button>}</div>
+        <div className="field-grid"><label><span>العربية</span><input value={form.question_ar} onChange={(e) => setForm({ ...form, question_ar: e.target.value })} placeholder="نص السؤال بالعربية" dir="rtl" /></label><label><span>Français</span><input value={form.question_fr} onChange={(e) => setForm({ ...form, question_fr: e.target.value })} placeholder="Texte de la question en français" /></label></div>
+        <div className="field-grid three"><label><span>{t.questionType}</span><select value={form.question_type} onChange={(e) => setForm({ ...form, question_type: e.target.value })}><option value="single_choice">{t.singleChoice}</option><option value="multiple_choice">{t.multipleChoice}</option><option value="text">{t.text}</option><option value="number">{t.number}</option></select></label><label className="check-field"><input type="checkbox" checked={form.required} onChange={(e) => setForm({ ...form, required: e.target.checked })} /><span>{t.required}</span></label><label className="check-field"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /><span>{t.active}</span></label></div>
+        {["single_choice", "multiple_choice"].includes(form.question_type) && <div className="option-editor"><div className="option-header"><span>{t.options}</span><button type="button" className="text-button" onClick={addOption}><Plus size={15} />{t.addOption}</button></div>{form.options.map((option, index) => <div className="option-row" key={`${index}-${option.value}`}><input value={option.label_ar} onChange={(e) => updateOption(index, "label_ar", e.target.value)} placeholder="العربية" dir="rtl" /><input value={option.label_fr} onChange={(e) => updateOption(index, "label_fr", e.target.value)} placeholder="Français" /><input value={option.value} onChange={(e) => updateOption(index, "value", e.target.value)} placeholder="value" /><button type="button" className="icon-button danger" onClick={() => removeOption(index)} aria-label={t.delete}><Trash2 size={15} /></button></div>)}</div>}
+        <div className="editor-footer"><button type="button" className="button button-primary" onClick={saveQuestion} disabled={saving}><Save size={16} />{saving ? (lang === "ar" ? "جارٍ الحفظ…" : "Enregistrement…") : editing ? t.save : t.add}</button>{editing && <button type="button" className="button button-secondary" onClick={reset}>{t.cancel}</button>}</div>
             </Card>
-          ))}
-        </div>
-      )}
-
-      {tab === "weather" && (
-        <Card className="p-5 md:p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: C.sky, color: C.blue }}><CloudRain size={17} /></div>
-            <div>
-              <div className="text-sm font-extrabold" style={{ color: C.navy }}>{t.weather}</div>
-              <div className="text-xs" style={{ color: C.muted }}>Données existantes · weather_locations</div>
-            </div>
-          </div>
-          {weatherLocations.length === 0 ? (
-            <div className="rounded-2xl p-5 text-center text-xs" style={{ background: C.sky, color: C.muted }}>{t.noWeather}</div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {weatherLocations.map((w) => (
-                <div key={w.id} className="rounded-2xl border p-4" style={{ borderColor: C.border }}>
-                  <div className="text-sm font-bold" style={{ color: C.navy }}>{w.wilaya} — {w.location_name}</div>
-                  <div className="mt-1 text-xs" style={{ color: C.muted }}>{w.latitude}, {w.longitude}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {tab === "settings" && (
-        <Card className="p-6">
-          <div className="mb-3 flex items-center gap-2">
-            <Settings2 size={17} style={{ color: C.blue }} />
-            <div className="text-sm font-extrabold" style={{ color: C.navy }}>{t.settingsTab}</div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl p-4" style={{ background: C.sky }}>
-              <div className="text-xs font-bold" style={{ color: C.navy }}>Survey slug</div>
-              <div className="mt-1 text-sm" style={{ color: C.slate }}>{SURVEY_SLUG}</div>
-            </div>
-            <div className="rounded-2xl p-4" style={{ background: C.sky }}>
-              <div className="text-xs font-bold" style={{ color: C.navy }}>Supabase</div>
-              <div className="mt-1 text-sm" style={{ color: C.slate }}>Connexion existante conservée</div>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
+      {(duplicateQuestionIds.size > 0 || duplicateOptionQuestionIds.size > 0) && <div className="validation-banner"><Info size={16} /><span>{t.duplicatesFound}</span></div>}
+      <div className="question-list">{questions.length === 0 && <Card>
+<div className="empty-state"><ClipboardList size={28} /><p>{t.noQuestions}</p></div></Card>}{questions.map((q, index) => <Card key={q.id} className={!q.active ? "is-muted" : ""}><div className="question-row"><GripVertical className="drag-icon" size={17} /><div className="question-row-copy"><span className="question-index">{String(index + 1).padStart(2, "0")}</span><strong>{lang === "ar" ? q.question_ar : q.question_fr}</strong><small>{q.question_type} · {q.required ? t.required : t.optional} · {q.active ? t.active : t.inactive}{(duplicateQuestionIds.has(q.id) || duplicateOptionQuestionIds.has(q.id)) && <em className="duplicate-badge">{t.duplicateBadge}</em>}</small>
+</div><div className="row-actions"><button type="button" className="icon-button" onClick={() => moveQuestion(q, -1)} disabled={index === 0} aria-label={t.moveUp}><ChevronLeft className="rotate-90" size={15} /></button><button type="button" className="icon-button" onClick={() => moveQuestion(q, 1)} disabled={index === questions.length - 1} aria-label={t.moveDown}><ChevronRight className="rotate-90" size={15} /></button><button type="button" className="icon-button" onClick={() => startEdit(q)} aria-label={t.editQuestion}><Pencil size={15} /></button><button type="button" className="icon-button" onClick={() => toggleQuestion(q)} aria-label={q.active ? t.disable : t.enable}>{q.active ? <EyeOff size={15} /> : <Eye size={15} />}</button><button type="button" className="icon-button danger" onClick={() => deleteQuestion(q)} aria-label={t.delete}><Trash2 size={15} /></button></div></div></Card>)}</div>
+        </div>}
+    {tab === "team" && <div className="team-admin-panel">
+      <Card className="member-editor"><div className="editor-title"><div><span className="eyebrow">{editingMember ? t.editMember : t.addMember}</span><h3>{editingMember ? t.editMember : t.addMember}</h3></div>{editingMember ? <button type="button" className="icon-button" onClick={resetMember} aria-label={t.cancel}><X size={17} /></button> : <UserPlus size={22} className="member-editor-mark" />}</div>
+        <div className="field-grid"><label><span>{t.memberNameAr}</span><input value={memberForm.name_ar} onChange={(e) => setMemberForm({ ...memberForm, name_ar: e.target.value })} dir="rtl" placeholder="اسم العضو" /></label><label><span>{t.memberNameFr}</span><input value={memberForm.name_fr} onChange={(e) => setMemberForm({ ...memberForm, name_fr: e.target.value })} placeholder="Nom du membre" /></label></div>
+        <div className="field-grid"><label><span>{t.memberRoleAr}</span><input value={memberForm.role_ar} onChange={(e) => setMemberForm({ ...memberForm, role_ar: e.target.value })} dir="rtl" placeholder="الدور أو التخصص" /></label><label><span>{t.memberRoleFr}</span><input value={memberForm.role_fr} onChange={(e) => setMemberForm({ ...memberForm, role_fr: e.target.value })} placeholder="Rôle ou spécialité" /></label></div>
+        <div className="member-image-editor"><div className="member-preview">{memberForm.image_url ? <img src={memberForm.image_url} alt="" /> : <UsersRound size={28} />}</div><div className="member-image-fields"><label><span>{t.imageUrl}</span><input type="url" value={memberForm.image_url} onChange={(e) => setMemberForm({ ...memberForm, image_url: e.target.value })} placeholder="https://…" /></label><label className="file-upload-label"><span>{t.uploadImage}</span><span className="file-upload-button"><ImagePlus size={15} />{t.uploadImage}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadMemberImage(e.target.files?.[0])} /></span></label></div></div>
+        <div className="field-grid three"><label><span>{lang === "ar" ? "الترتيب" : "Ordre"}</span><input type="number" min="1" value={memberForm.sort_order} onChange={(e) => setMemberForm({ ...memberForm, sort_order: e.target.value })} /></label><label className="check-field"><input type="checkbox" checked={memberForm.active} onChange={(e) => setMemberForm({ ...memberForm, active: e.target.checked })} /><span>{t.active}</span></label></div>
+        <div className="editor-footer"><button type="button" className="button button-primary" onClick={saveMember} disabled={saving}><Save size={16} />{saving ? "…" : t.saveMember}</button>{editingMember && <button type="button" className="button button-secondary" onClick={resetMember}>{t.cancel}</button>}</div>
+      </Card>
+      <div className="team-admin-list">{teamMembers.length === 0 && <Card><div className="empty-state"><UsersRound size={28} /><p>{t.noMembers}</p></div></Card>}{teamMembers.map((member) => <Card key={member.id} className={member.active === false ? "is-muted" : ""}><div className="team-admin-row"><div className="member-mini-avatar">{member.image_url ? <img src={member.image_url} alt="" /> : <UsersRound size={18} />}</div><div className="question-row-copy"><strong>{lang === "ar" ? member.name_ar : member.name_fr}</strong><small>{(lang === "ar" ? member.role_ar : member.role_fr) || t.teamTitle} · {member.active === false ? t.inactive : t.active}</small></div><div className="row-actions"><button type="button" className="icon-button" onClick={() => startMemberEdit(member)} aria-label={t.editMember}><Pencil size={15} /></button><button type="button" className="icon-button danger" onClick={() => removeMember(member)} aria-label={t.disable}><EyeOff size={15} /></button></div></div></Card>)}</div>
+    </div>}
+    {tab === "results" && <div className="results-panel"><Card className="results-summary">
+<div className="results-summary-icon"><BarChart3 size={22} /></div><div><span className="eyebrow">{t.results}</span><h3>{participants} {t.participants}</h3><p>{lang === "ar" ? "النتائج المعروضة مجمعة ولا تتضمن أي بيانات شخصية." : "Les résultats sont agrégés et ne contiennent aucune donnée personnelle."}</p></div><button type="button" className="button button-secondary" onClick={loadResults}><RefreshCw size={15} />{lang === "ar" ? "تحديث" : "Actualiser"}</button></Card><div className="result-grid">{resultGroups.map(({ question, data }) => <Card key={question.id}><h3 className="result-question">{lang === "ar" ? question.question_ar : question.question_fr}</h3><ResultChart data={data} emptyLabel={t.noResults} /></Card>)}</div></div>}
+    {tab === "weather" && <Card><div className="section-title"><div className="title-icon"><CloudRain size={18} /></div><div><span className="eyebrow">{t.weather}</span><h3>{lang === "ar" ? "مناطق بيانات الطقس" : "Régions de données météo"}</h3></div></div>{weatherLocations.length === 0 ? <div className="empty-state"><CloudRain size={28} /><p>{t.noWeather}</p><small>{t.addWeatherHint}</small></div> : <div className="weather-list">{weatherLocations.map((location) => <div key={location.id} className="weather-row"><span>{location.wilaya} — {location.location_name}</span><small>{location.latitude}, {location.longitude}</small></div>)}</div>}</Card>}
+  </section>;
 }
 
-function App() {
+export default function SondageStandalone() {
   const [lang, setLang] = useState("fr");
-  const [mode, setMode] = useState("form"); // form | admin
+  const [mode, setMode] = useState("form");
+  const [started, setStarted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [survey, setSurvey] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loadingSurvey, setLoadingSurvey] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-
-  const [answers, setAnswers] = useState(loadLocalAnswers);
-  const [step, setStep] = useState(() => Number(window.localStorage.getItem(STEP_STORAGE_KEY) || 0));
-  const [started, setStarted] = useState(() => Number(window.localStorage.getItem(STEP_STORAGE_KEY) || 0) > 0);
-  const [submitted, setSubmitted] = useState(false);
+  const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState(null);
-
+  const [submitted, setSubmitted] = useState(hasStoredSubmission);
+  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+  const [participants, setParticipants] = useState(0);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [session, setSession] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPromptOpen, setAdminPromptOpen] = useState(false);
@@ -1159,585 +573,129 @@ function App() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
-
-  const [results, setResults] = useState(null);
-  const [participants, setParticipants] = useState(0);
-
   const clickTimestamps = useRef([]);
   const t = T[lang];
+  const dir = t.dir;
 
-  const qText = (q) => lang === "ar" ? q.question_ar : q.question_fr;
+  const qText = useCallback((q) => lang === "ar" ? q.question_ar : q.question_fr, [lang]);
+  const oText = useCallback((o) => lang === "ar" ? o.label_ar : o.label_fr, [lang]);
+  const currentQuestion = questions[currentStep];
+  const requiredAnswered = useCallback((question) => {
+    if (!question || !question.required) return true;
+    const value = answers[question.id];
+    return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && String(value).trim() !== "";
+  }, [answers]);
+  const allAnswered = useMemo(() => questions.every(requiredAnswered), [questions, requiredAnswered]);
+  const progress = questions.length ? Math.round(((currentStep + 1) / questions.length) * 100) : 0;
 
   const loadSurvey = useCallback(async () => {
-    setLoadingSurvey(true);
-    setLoadError(null);
+    setLoadingSurvey(true); setError(null);
     try {
-      const { data: surveyRow, error: sErr } = await supabase
-        .from("surveys")
-        .select("id, slug, title_ar, title_fr, active")
-        .eq("slug", SURVEY_SLUG)
-        .eq("active", true)
-        .single();
-      if (sErr || !surveyRow) throw sErr || new Error("SURVEY_NOT_FOUND");
-
-      const { data: qRows, error: qErr } = await supabase
-        .from("survey_questions")
-        .select("id, question_ar, question_fr, question_type, required, sort_order, active, survey_options(id, label_ar, label_fr, value, sort_order)")
-        .eq("survey_id", surveyRow.id)
-        .eq("active", true)
-        .order("sort_order", { ascending: true });
-      if (qErr) throw qErr;
-
+      const { data: surveyRow, error: surveyError } = await supabase.from("surveys").select("id, slug, title_ar, title_fr, active").eq("slug", SURVEY_SLUG).eq("active", true).single();
+      if (surveyError || !surveyRow) throw surveyError || new Error("SURVEY_NOT_FOUND");
       setSurvey(surveyRow);
-      setQuestions((qRows || []).map((q) => ({
-        ...q,
-        options: (q.survey_options || []).slice().sort((a, b) => a.sort_order - b.sort_order),
-      })));
-    } catch (error) {
-      console.error("[survey-load]", error);
-      setLoadError(t.genericError);
-    } finally {
-      setLoadingSurvey(false);
-    }
-  }, [t.genericError]);
+      const { data: questionRows, error: questionError } = await supabase.from("survey_questions").select("id, question_ar, question_fr, question_type, required, sort_order, survey_options(id, label_ar, label_fr, value, sort_order)").eq("survey_id", surveyRow.id).eq("active", true).order("sort_order", { ascending: true });
+      if (questionError) throw questionError;
+      setQuestions((questionRows || []).map((q) => ({ ...q, options: (q.survey_options || []).slice().sort((a, b) => a.sort_order - b.sort_order) })));
+    } catch (loadError) {
+      console.error("[survey-load]", loadError);
+      setError(T[lang].errorLoad);
+    } finally { setLoadingSurvey(false); }
+  }, [lang]);
 
   useEffect(() => { loadSurvey(); }, [loadSurvey]);
-
-  useEffect(() => {
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-    supabase.auth.getSession().then(({ data }) => setSession(data.session || null));
-    return () => authSubscription.subscription.unsubscribe();
+  const loadTeamMembers = useCallback(async () => {
+    try {
+      const { data, error: teamError } = await supabase.from("team_members").select("id, name_ar, name_fr, role_ar, role_fr, image_url, sort_order, active").eq("active", true).order("sort_order", { ascending: true });
+      if (teamError) throw teamError;
+      setTeamMembers(data || []);
+    } catch (teamError) {
+      // The team table is optional until the accompanying SQL is applied.
+      console.warn("[team-members-load]", teamError?.message || teamError);
+      setTeamMembers([]);
+    }
   }, []);
-
+  useEffect(() => { loadTeamMembers(); }, [loadTeamMembers]);
+  useEffect(() => { document.documentElement.lang = lang; document.documentElement.dir = dir; document.title = t.title; }, [dir, lang, t.title]);
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => { if (active) setSession(data.session ?? null); }).catch((authLoadError) => console.error("[auth-session]", authLoadError));
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
+    return () => { active = false; subscription.subscription.unsubscribe(); };
+  }, []);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if (!session?.user) {
-        setIsAdmin(false);
-        return;
-      }
-      const { data, error } = await supabase.from("admins").select("id").eq("id", session.user.id).maybeSingle();
-      if (!cancelled) setIsAdmin(!error && !!data);
-    })();
+    if (!session?.user) { setIsAdmin(false); return () => { cancelled = true; }; }
+    supabase.from("admins").select("id").eq("id", session.user.id).maybeSingle().then(({ data, error: adminLoadError }) => { if (adminLoadError) console.error("[admin-check]", adminLoadError); if (!cancelled) setIsAdmin(!adminLoadError && !!data); }).catch((adminCheckError) => { console.error("[admin-check]", adminCheckError); if (!cancelled) setIsAdmin(false); });
     return () => { cancelled = true; };
   }, [session]);
 
-  useEffect(() => {
-    window.localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers));
-  }, [answers]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STEP_STORAGE_KEY, String(step));
-  }, [step]);
-
-  const answeredCount = useMemo(() => {
-    return questions.filter((q) => {
-      const value = answers[q.id];
-      if (Array.isArray(value)) return value.length > 0;
-      return value !== undefined && value !== null && String(value).trim() !== "";
-    }).length;
-  }, [answers, questions]);
-
-  const requiredAnsweredCount = useMemo(() => {
-    return questions.filter((q) => {
-      if (!q.required) return false;
-      const value = answers[q.id];
-      if (Array.isArray(value)) return value.length > 0;
-      return value !== undefined && value !== null && String(value).trim() !== "";
-    }).length;
-  }, [answers, questions]);
-
-  const isCurrentAnswered = useMemo(() => {
-    const q = questions[step];
-    if (!q || !q.required) return true;
-    const value = answers[q.id];
-    if (Array.isArray(value)) return value.length > 0;
-    return value !== undefined && value !== null && String(value).trim() !== "";
-  }, [answers, questions, step]);
-
-  function updateAnswer(questionId, value) {
-    setAnswers((current) => ({ ...current, [questionId]: value }));
-    setFormError(null);
-  }
-
-  function startSurvey() {
-    setStarted(true);
-    setStep(0);
-    setFormError(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function goNext() {
-    if (!isCurrentAnswered) {
-      setFormError(t.validation);
-      return;
-    }
-    setFormError(null);
-    setStep((s) => Math.min(questions.length - 1, s + 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function goPrevious() {
-    setFormError(null);
-    setStep((s) => Math.max(0, s - 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function handleTitleClick() {
-    const now = Date.now();
-    clickTimestamps.current = clickTimestamps.current.filter((ts) => now - ts < ADMIN_TRIGGER_WINDOW_MS);
-    clickTimestamps.current.push(now);
-    if (clickTimestamps.current.length >= ADMIN_TRIGGER_CLICKS) {
-      clickTimestamps.current = [];
-      setAdminPromptOpen(true);
-    }
-  }
-
-  async function handleAdminLogin() {
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.session) throw error || new Error("AUTH");
-      const { data: adminRow, error: aErr } = await supabase.from("admins").select("id").eq("id", data.session.user.id).maybeSingle();
-      if (aErr || !adminRow) {
-        await supabase.auth.signOut();
-        throw new Error("NOT_ADMIN");
-      }
-      setIsAdmin(true);
-      setAdminPromptOpen(false);
-      setMode("admin");
-      setEmail("");
-      setPassword("");
-    } catch (error) {
-      console.error("[survey-admin-auth]", error);
-      setAuthError(t.wrongCredentials);
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    setIsAdmin(false);
-    setMode("form");
-  }
-
   const loadResults = useCallback(async () => {
-    if (!survey || !isAdmin) return;
-    try {
-      const { data, error } = await supabase.from("public_survey_results").select("*").eq("survey_id", survey.id);
-      if (error) throw error;
-      setResults(data || []);
-
-      const { data: participantData } = await supabase
-        .from("public_survey_participant_counts")
-        .select("total_participants")
-        .eq("survey_id", survey.id)
-        .maybeSingle();
-      setParticipants(participantData?.total_participants || 0);
-    } catch (error) {
-      console.error("[survey-results]", error);
-      setFormError(t.genericError);
-    }
-  }, [isAdmin, survey, t.genericError]);
-
-  useEffect(() => {
-    if (mode === "admin" && isAdmin) loadResults();
-  }, [mode, isAdmin, loadResults]);
-
-  async function handleSubmit() {
     if (!survey) return;
-    if (!isCurrentAnswered) {
-      setFormError(t.validation);
-      return;
-    }
+    try {
+      const { data, error: resultsError } = await supabase.from("public_survey_results").select("*").eq("survey_id", survey.id);
+      if (resultsError) throw resultsError;
+      setResults(data || []);
+      const { data: countData, error: countError } = await supabase.from("public_survey_participant_counts").select("total_participants").eq("survey_id", survey.id).maybeSingle();
+      if (countError) console.error("[public-participant-count]", countError); else setParticipants(countData?.total_participants || 0);
+    } catch (resultsError) { console.error("[survey-results]", resultsError); setError(t.errorLoad); }
+  }, [survey, t.errorLoad]);
+  useEffect(() => { if (mode === "results" && isAdmin) loadResults(); }, [isAdmin, loadResults, mode]);
 
-    const missingRequired = questions.some((q) => {
-      if (!q.required) return false;
-      const value = answers[q.id];
-      return Array.isArray(value) ? value.length === 0 : value === undefined || value === null || String(value).trim() === "";
-    });
+    const updateAnswer = (questionId, value) => { setAnswers((previous) => ({ ...previous, [questionId]: value })); setError(null); };
+  const markSubmissionComplete = () => { try { window.localStorage.setItem(SUBMITTED_STORAGE_KEY, "true"); } catch (storageError) { console.warn("[survey-submission-storage]", storageError); } setSubmitted(true); };
+  const handleTitleClick = () => {
+ const now = Date.now(); clickTimestamps.current = clickTimestamps.current.filter((timestamp) => now - timestamp < ADMIN_TRIGGER_WINDOW_MS); clickTimestamps.current.push(now); if (clickTimestamps.current.length >= ADMIN_TRIGGER_CLICKS) { clickTimestamps.current = []; setAdminPromptOpen(true); setAuthError(null); } };
+  const handleNext = () => { if (!requiredAnswered(currentQuestion)) { setError(t.requiredCurrent); return; } setError(null); setCurrentStep((step) => Math.min(step + 1, questions.length - 1)); };
+  const handlePrevious = () => { setError(null); setCurrentStep((step) => Math.max(step - 1, 0)); };
 
-    if (missingRequired) {
-      setFormError(t.validation);
-      const firstMissing = questions.findIndex((q) => {
-        if (!q.required) return false;
-        const value = answers[q.id];
-        return Array.isArray(value) ? value.length === 0 : value === undefined || value === null || String(value).trim() === "";
-      });
-      if (firstMissing >= 0) setStep(firstMissing);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-
-    setSubmitting(true);
-    setFormError(null);
-
+  const handleSubmit = async () => {
+    if (!allAnswered || !survey) { setError(t.requiredAll); return; }
+    setSubmitting(true); setError(null);
     try {
       const respondentId = getRespondentId();
       const responseId = crypto.randomUUID();
-      const payload = questions
-        .filter((q) => answers[q.id] !== undefined && answers[q.id] !== null && String(answers[q.id]).trim() !== "")
-        .flatMap((q) => {
-          const value = answers[q.id];
-          const values = Array.isArray(value) ? value : [value];
-          return values.map((v) => {
-            const opt = q.options.find((o) => o.id === v);
-            return {
-              question_id: q.id,
-              answer_value: opt?.value ?? String(v),
-              answer_text: opt ? (lang === "ar" ? opt.label_ar : opt.label_fr) : String(v),
-            };
-          });
-        });
+      const payload = questions.flatMap((q) => { const value = answers[q.id]; const values = Array.isArray(value) ? value : [value]; return values.filter((item) => item !== undefined && item !== null && String(item).trim() !== "").map((item) => { const option = q.options.find((o) => o.id === item); return { question_id: q.id, answer_value: option?.value ?? String(item), answer_text: option ? oText(option) : String(item) }; }); });
+      const { data: rpcResponseId, error: rpcError } = await supabase.rpc("submit_survey_response", { p_survey_id: survey.id, p_respondent_id: respondentId, p_answers: payload });
+      if (!rpcError && rpcResponseId) { markSubmissionComplete(); return; }
+      if (String(rpcError?.message || "").includes("DUPLICATE_RESPONSE")) { setError(t.duplicate); return; }
+      const { error: responseError } = await supabase.from("survey_responses").insert({ id: responseId, survey_id: survey.id, respondent_id: respondentId });
+      if (responseError) { if (String(responseError.message || "").toLowerCase().includes("duplicate")) { setError(t.duplicate); return; } throw responseError; }
+      const { error: answersError } = await supabase.from("survey_answers").insert(payload.map((answer) => ({ response_id: responseId, ...answer })));
+      if (answersError) { await supabase.from("survey_responses").delete().eq("id", responseId); throw answersError; }
+            markSubmissionComplete();
+    } catch (submitError) {
+ console.error("[survey-submit]", submitError); setError(String(submitError?.message || "").includes("DUPLICATE_RESPONSE") ? t.duplicate : t.errorSubmit); }
+    finally { setSubmitting(false); }
+  };
 
-      if (!payload.length) throw new Error("NO_ANSWERS");
+  const handleAdminLogin = async () => {
+    setAuthBusy(true); setAuthError(null);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError || !data.session) throw signInError || new Error("NO_SESSION");
+      const { data: adminRow, error: adminErrorResponse } = await supabase.from("admins").select("id").eq("id", data.session.user.id).maybeSingle();
+      if (adminErrorResponse || !adminRow) { await supabase.auth.signOut(); throw adminErrorResponse || new Error("NOT_ADMIN"); }
+      setSession(data.session); setIsAdmin(true); setMode("results"); setAdminPromptOpen(false); setEmail(""); setPassword("");
+    } catch (loginError) { console.error("[admin-login]", loginError); setAuthError(t.adminWrong); }
+    finally { setAuthBusy(false); }
+  };
+  const handleSignOut = async () => { try { await supabase.auth.signOut(); } catch (signOutError) { console.error("[admin-signout]", signOutError); } setIsAdmin(false); setSession(null); setMode("form"); };
 
-      const { data: rpcResponseId, error: rpcErr } = await supabase.rpc("submit_survey_response", {
-        p_survey_id: survey.id,
-        p_respondent_id: respondentId,
-        p_answers: payload,
-      });
-
-      if (!rpcErr && rpcResponseId) {
-        setSubmitted(true);
-        window.localStorage.removeItem(ANSWERS_STORAGE_KEY);
-        window.localStorage.removeItem(STEP_STORAGE_KEY);
-        return;
-      }
-
-      if (String(rpcErr?.message || "").includes("DUPLICATE_RESPONSE")) {
-        throw rpcErr;
-      }
-
-      if (rpcErr) {
-        const { error: responseErr } = await supabase.from("survey_responses").insert({
-          id: responseId,
-          survey_id: survey.id,
-          respondent_id: respondentId,
-        });
-        if (responseErr) throw responseErr;
-
-        const answerRows = payload.map((a) => ({
-          response_id: responseId,
-          question_id: a.question_id,
-          answer_value: a.answer_value,
-          answer_text: a.answer_text,
-        }));
-        const { error: answersErr } = await supabase.from("survey_answers").insert(answerRows);
-        if (answersErr) {
-          await supabase.from("survey_responses").delete().eq("id", responseId);
-          throw answersErr;
-        }
-      } else {
-        throw new Error("RESPONSE_NOT_CREATED");
-      }
-
-      setSubmitted(true);
-      window.localStorage.removeItem(ANSWERS_STORAGE_KEY);
-      window.localStorage.removeItem(STEP_STORAGE_KEY);
-    } catch (error) {
-      console.error("[survey-submit]", error);
-      setFormError(formatErrorMessage(lang, t.genericError, error));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const progressPct = questions.length ? Math.round(((step + 1) / questions.length) * 100) : 0;
-
-  if (loadingSurvey) {
-    return (
-      <div className="min-h-screen" style={{ background: C.ivory }} dir={t.dir}>
-        <div className="mx-auto max-w-4xl px-4 py-14">
-          <div className="animate-pulse space-y-4">
-            <div className="h-24 rounded-3xl bg-white shadow-sm" />
-            <div className="h-8 w-1/3 rounded-lg bg-white" />
-            <div className="h-64 rounded-3xl bg-white shadow-sm" />
-          </div>
-          <div className="mt-5 text-center text-xs" style={{ color: C.muted }}>{t.loading}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return <ErrorState lang={lang} onRetry={loadSurvey} message={loadError} />;
-  }
-
-  return (
-    <div dir={t.dir} className="min-h-screen" style={{ background: C.ivory, color: C.ink }}>
-      <header className="relative overflow-hidden text-white" style={{ background: `radial-gradient(circle at 85% 15%, rgba(66,127,190,.38), transparent 35%), linear-gradient(135deg, ${C.navy} 0%, #153B68 62%, #1D5E96 100%)` }}>
-        <div className="absolute -right-20 -top-16 h-64 w-64 rounded-full border border-white/10 bg-white/5" />
-        <div className="absolute -left-24 bottom-0 h-56 w-56 rounded-full border border-white/10 bg-white/5" />
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <button type="button" onClick={handleTitleClick} className="flex items-center gap-3 text-start">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm">
-                <ShieldCheck size={20} />
-              </span>
-              <span>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55">{t.kicker}</span>
-                <span className="mt-0.5 block max-w-[220px] text-xs font-semibold leading-5 text-white/85 md:max-w-none">{t.institute}</span>
-              </span>
-            </button>
-
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <button onClick={() => setMode("admin")} className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold backdrop-blur-sm">
-                  <BarChart3 size={13} className="me-1 inline" />
-                  {t.dashboard}
-                </button>
-              )}
-              <button
-                onClick={() => setLang((current) => current === "fr" ? "ar" : "fr")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold backdrop-blur-sm"
-              >
-                <Globe2 size={14} />
-                {lang === "fr" ? "العربية" : "Français"}
-              </button>
-            </div>
-          </div>
-
-          {mode === "form" && (
-            <div className="grid items-center gap-9 pb-12 pt-12 lg:grid-cols-[1.25fr_.75fr] lg:pb-16">
-              <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-bold backdrop-blur-sm">
-                  <Sprout size={13} />
-                  {t.kicker}
-                </div>
-                <h1 className="max-w-4xl text-3xl font-black leading-tight tracking-tight md:text-5xl md:leading-[1.12]" onClick={handleTitleClick}>
-                  {t.title}
-                </h1>
-                <p className="mt-5 max-w-3xl text-sm leading-7 text-white/72 md:text-base">{t.subtitle}</p>
-
-                <div className="mt-7 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-sm">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-white/50">{t.duration}</div>
-                    <div className="mt-1 text-sm font-extrabold">{t.minutes}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-sm">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-white/50">{t.questions}</div>
-                    <div className="mt-1 text-sm font-extrabold">{questions.length}</div>
-                  </div>
-                  <div className="col-span-2 rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-sm sm:col-span-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-white/50">ISCAE</div>
-                    <div className="mt-1 text-sm font-extrabold">{lang === "ar" ? t.instituteArabic : "Mauritanie"}</div>
-                  </div>
-                </div>
-
-                {!started && (
-                  <button onClick={startSurvey} className="mt-8 inline-flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-black shadow-lg transition hover:-translate-y-0.5" style={{ background: C.white, color: C.navy }}>
-                    <ClipboardList size={18} />
-                    {t.start}
-                    {lang === "fr" ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
-                  </button>
-                )}
-              </div>
-
-              <div className="hidden lg:block">
-                <div className="relative mx-auto max-w-sm">
-                  <div className="absolute inset-0 rounded-[2.5rem] bg-white/10 blur-2xl" />
-                  <div className="relative rounded-[2.5rem] border border-white/10 bg-white/10 p-7 shadow-2xl backdrop-blur-md">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-3xl bg-white p-5" style={{ color: C.navy }}>
-                        <CloudRain size={28} style={{ color: C.blue }} />
-                        <div className="mt-8 text-sm font-black">Climat</div>
-                        <div className="mt-1 text-xs" style={{ color: C.muted }}>Sécheresse · pluie · chaleur</div>
-                      </div>
-                      <div className="rounded-3xl p-5 text-white" style={{ background: "rgba(20,133,91,.9)" }}>
-                        <Sprout size={28} />
-                        <div className="mt-8 text-sm font-black">Agriculture</div>
-                        <div className="mt-1 text-xs text-white/70">Résilience du secteur</div>
-                      </div>
-                      <div className="col-span-2 rounded-3xl bg-white p-5" style={{ color: C.navy }}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Paramétrique</div>
-                            <div className="mt-1 text-2xl font-black">Protection</div>
-                          </div>
-                          <ShieldCheck size={38} style={{ color: C.gold }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-7 md:px-8 md:py-10">
-        {mode === "admin" && isAdmin ? (
-          <AdminDashboard
-            survey={survey}
-            questions={questions}
-            setQuestions={setQuestions}
-            lang={lang}
-            t={t}
-            loadResults={loadResults}
-            results={results}
-            participants={participants}
-            handleSignOut={handleSignOut}
-            handleBackToSurvey={() => setMode("form")}
-          />
-        ) : submitted ? (
-          <SuccessScreen lang={lang} />
-        ) : (
-          <>
-            <div className="mx-auto max-w-4xl">
-              <Card className="mb-5 overflow-hidden">
-                <div className="p-4 md:p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: C.muted }}>{t.progress}</div>
-                      <div className="mt-1 text-sm font-black" style={{ color: C.navy }}>
-                        {started ? `${t.question} ${Math.min(step + 1, questions.length)} / ${questions.length}` : t.shortTitle}
-                      </div>
-                    </div>
-                    <div className="rounded-full px-3 py-1.5 text-xs font-black" style={{ background: C.blueSoft, color: C.blue }}>
-                      {started ? `${progressPct}%` : `${answeredCount}/${questions.length}`}
-                    </div>
-                  </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full" style={{ background: "#E8EEF5" }}>
-                    <div className="h-full rounded-full transition-all duration-300" style={{ width: `${started ? progressPct : 0}%`, background: `linear-gradient(90deg, ${C.blue}, ${C.green})` }} />
-                  </div>
-                </div>
-              </Card>
-
-              {!started ? (
-                <div className="grid gap-5 md:grid-cols-[1.1fr_.9fr]">
-                  <Card className="p-6 md:p-8">
-                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: C.blueSoft, color: C.blue }}>
-                      <ClipboardList size={21} />
-                    </div>
-                    <h2 className="text-xl font-black" style={{ color: C.navy }}>{lang === "ar" ? "قبل البدء" : "Avant de commencer"}</h2>
-                    <p className="mt-3 text-sm leading-7" style={{ color: C.slate }}>{t.anonymous}</p>
-                    <button onClick={startSurvey} className="mt-7 inline-flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5" style={{ background: C.navy }}>
-                      <ClipboardList size={17} />
-                      {t.start}
-                    </button>
-                  </Card>
-                  <Card className="p-6 md:p-8">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl p-4" style={{ background: C.sky }}>
-                        <CloudSun size={20} style={{ color: C.gold }} />
-                        <div className="mt-6 text-xs font-black" style={{ color: C.navy }}>{t.duration}</div>
-                        <div className="mt-1 text-sm" style={{ color: C.slate }}>{t.minutes}</div>
-                      </div>
-                      <div className="rounded-2xl p-4" style={{ background: C.sky }}>
-                        <ClipboardList size={20} style={{ color: C.blue }} />
-                        <div className="mt-6 text-xs font-black" style={{ color: C.navy }}>{t.questions}</div>
-                        <div className="mt-1 text-sm" style={{ color: C.slate }}>{questions.length}</div>
-                      </div>
-                      <div className="col-span-2 rounded-2xl p-4" style={{ background: C.greenSoft }}>
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck size={20} style={{ color: C.green }} />
-                          <span className="text-xs font-black" style={{ color: C.green }}>{t.privacyTitle}</span>
-                        </div>
-                        <p className="mt-2 text-xs leading-6" style={{ color: C.slate }}>{t.anonymous}</p>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  <div className="rounded-2xl border p-4 text-xs leading-6" style={{ borderColor: C.border, background: C.sky, color: C.slate }}>
-                    <Info size={14} className="me-2 inline align-[-2px]" style={{ color: C.blue }} />
-                    {t.anonymous}
-                  </div>
-
-                  {questions[step] && (
-                    <QuestionCard
-                      q={questions[step]}
-                      index={step}
-                      total={questions.length}
-                      answer={answers[questions[step].id]}
-                      setAnswer={(value) => updateAnswer(questions[step].id, value)}
-                      lang={lang}
-                    />
-                  )}
-
-                  {formError && (
-                    <div className="rounded-2xl border p-4 text-xs font-semibold" style={{ borderColor: "#F1C4C0", background: C.redSoft, color: C.red }}>
-                      {formError}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <button onClick={goPrevious} disabled={step === 0 || submitting} className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold disabled:opacity-40" style={{ borderColor: C.border, color: C.navy }}>
-                      {lang === "fr" ? <ArrowLeft size={16} /> : <ArrowRight size={16} />}
-                      {t.previous}
-                    </button>
-                    {step < questions.length - 1 ? (
-                      <button onClick={goNext} disabled={submitting} className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black text-white shadow-lg disabled:opacity-60" style={{ background: C.navy }}>
-                        {t.next}
-                        {lang === "fr" ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
-                      </button>
-                    ) : (
-                      <button onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black text-white shadow-lg disabled:opacity-60" style={{ background: C.green }}>
-                        <Send size={16} />
-                        {submitting ? t.submitting : t.submit}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 pb-4">
-                    {questions.map((q, i) => {
-                      const answered = Array.isArray(answers[q.id]) ? answers[q.id].length > 0 : answers[q.id] !== undefined && String(answers[q.id]).trim() !== "";
-                      return (
-                        <button key={q.id} onClick={() => { setStep(i); setFormError(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="h-2.5 rounded-full transition-all" style={{ width: i === step ? 26 : 10, background: i === step ? C.navy : answered ? C.green : "#CBD5E1" }} aria-label={`${t.question} ${i + 1}`} />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {adminPromptOpen && !isAdmin && (
-          <Card className="mx-auto mt-6 max-w-md p-5 md:p-6">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: C.goldSoft, color: C.gold }}><Lock size={17} /></div>
-              <div>
-                <div className="text-sm font-extrabold" style={{ color: C.navy }}>{t.adminTitle}</div>
-                <div className="text-[11px]" style={{ color: C.muted }}>{t.hiddenAdmin}</div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder={t.email} className="w-full rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: C.border }} />
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t.password} onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }} className="w-full rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: C.border }} />
-              {authError && <div className="rounded-xl p-3 text-xs" style={{ background: C.redSoft, color: C.red }}>{authError}</div>}
-              <div className="flex gap-2">
-                <button onClick={handleAdminLogin} disabled={authBusy} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-white disabled:opacity-60" style={{ background: C.navy }}>
-                  <Lock size={14} /> {authBusy ? "…" : t.signIn}
-                </button>
-                <button onClick={() => { setAdminPromptOpen(false); setAuthError(null); }} className="rounded-xl border px-4 py-2.5 text-xs font-bold" style={{ borderColor: C.border, color: C.slate }}>
-                  {t.cancel}
-                </button>
-              </div>
-            </div>
-          </Card>
-        )}
-      </main>
-
-      <footer className="border-t bg-white/60 px-4 py-8 md:px-8" style={{ borderColor: C.border }}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 text-xs sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="font-bold" style={{ color: C.navy }}>{t.institute}</div>
-            <div className="mt-1 leading-6" style={{ color: C.muted }}>{t.title}</div>
-          </div>
-          <div className="text-right leading-6" style={{ color: C.muted }}>
-            {t.kicker}<br />
-            {t.instituteArabic}
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
+  return <div dir={dir} className="app-shell">
+    <header className="site-header"><div className="header-inner"><button type="button" className="brand-button" onClick={handleTitleClick} aria-label="ISCAE"><span className="brand-mark institute-logo"><img src="/iscae-official-logo.jpeg" alt="شعار المعهد" /></span><span><strong>{t.institute}</strong><small>{t.kicker}</small></span></button><div className="header-actions"><button type="button" className="language-switcher" onClick={() => setLang((current) => current === "fr" ? "ar" : "fr")}><Globe2 size={16} /><span>{lang === "fr" ? "العربية" : "Français"}</span></button>{isAdmin && <button type="button" className="header-admin-button" onClick={() => setMode("results")}><BarChart3 size={15} />{t.dashboard}</button>}</div></div></header>
+    <main className="page-wrap">
+      {loadingSurvey && <div className="loading-state"><span className="spinner" />{t.loading}</div>}
+      {!loadingSurvey && error && !currentQuestion && <ErrorNotice message={error} onRetry={loadSurvey} lang={lang} />}
+      {!loadingSurvey && mode === "form" && !submitted && <>
+        {!started && <section className="hero-section"><div className="hero-copy"><span className="academic-badge"><Sprout size={15} />{t.badge}</span><h1>{t.title}</h1><p className="hero-subtitle">{t.subtitle}</p><p className="hero-intro">{t.intro}</p><div className="hero-meta"><span><ClipboardList size={16} />{questions.length} {t.questionsCount}</span><span><CloudRain size={16} />{t.duration}</span></div><button type="button" className="button button-primary hero-cta" disabled={!questions.length} onClick={() => { setStarted(true); setCurrentStep(0); }}>{t.start}<span className="directional-icon">{lang === "ar" ? <ChevronLeft size={19} /> : <ChevronRight size={19} />}</span></button></div><div className="hero-visual"><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="visual-card"><div className="visual-icon project-logo-wrap"><img src="/iscae-parametric-logo.svg" alt="شعار فكرة المشروع" /></div><span>{lang === "ar" ? "المخاطر المناخية" : "Risques climatiques"}</span><small>{lang === "ar" ? "الزراعة · المواشي · التأمين" : "Agriculture · élevage · assurance"}</small></div><div className="visual-pulse"><ShieldCheck size={20} /></div></div></section>}
+        {started && currentQuestion && <section className="survey-flow"><div className="survey-topline"><div><span className="eyebrow">{t.question} {currentStep + 1} {t.of} {questions.length}</span><strong>{progress}%</strong></div><span>{t.progress}</span></div><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><Card className="question-card"><div className="question-card-head"><span className="question-number">{String(currentStep + 1).padStart(2, "0")}</span><div><span className="question-kicker">{t.question} {currentStep + 1}</span><span className={`question-badge ${currentQuestion.required ? "required" : "optional"}`}>{currentQuestion.required ? t.required : t.optional}</span></div></div><h2>{qText(currentQuestion)}</h2>{currentQuestion.question_type === "text" && <textarea value={answers[currentQuestion.id] ?? ""} onChange={(e) => updateAnswer(currentQuestion.id, e.target.value)} placeholder={t.textPlaceholder} rows={6} autoFocus />}{currentQuestion.question_type === "number" && <input type="number" inputMode="numeric" value={answers[currentQuestion.id] ?? ""} onChange={(e) => updateAnswer(currentQuestion.id, e.target.value)} placeholder={t.numberPlaceholder} autoFocus />}{currentQuestion.question_type === "single_choice" && <div className="choices-grid">{currentQuestion.options.map((option) => <ChoiceCard key={option.id} option={option} selected={answers[currentQuestion.id] === option.id} label={oText(option)} onClick={() => updateAnswer(currentQuestion.id, option.id)} />)}</div>}{currentQuestion.question_type === "multiple_choice" && <div className="choices-grid">{currentQuestion.options.map((option) => { const selected = Array.isArray(answers[currentQuestion.id]) && answers[currentQuestion.id].includes(option.id); return <ChoiceCard key={option.id} option={option} multiple selected={selected} label={oText(option)} onClick={() => { const current = Array.isArray(answers[currentQuestion.id]) ? answers[currentQuestion.id] : []; updateAnswer(currentQuestion.id, selected ? current.filter((id) => id !== option.id) : [...current, option.id]); }} />; })}</div>}{error && <div className="inline-error" role="alert"><Info size={16} />{error}</div>}</Card><div className="survey-navigation"><button type="button" className="button button-secondary" onClick={handlePrevious} disabled={currentStep === 0}><span className="directional-icon">{lang === "ar" ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</span>{t.previous}</button>{currentStep < questions.length - 1 ? <button type="button" className="button button-primary" onClick={handleNext}>{t.next}<span className="directional-icon">{lang === "ar" ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}</span></button> : <button type="button" className="button button-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? t.submitting : t.submit}<CheckCircle2 size={17} /></button>}</div><p className="privacy-note"><LockKeyhole size={14} />{t.anonymous}</p></section>}
+      </>}
+      {!loadingSurvey && mode === "form" && submitted && <section className="success-screen"><div className="success-icon"><Check size={35} strokeWidth={3} /></div><span className="eyebrow">{lang === "ar" ? "تم الإرسال بنجاح" : "Réponse enregistrée"}</span><h1>{t.thanksTitle}</h1><p>{t.thanksText}</p><div className="submission-lock"><LockKeyhole size={15} />{t.submittedLock}</div></section>}
+      {adminPromptOpen && !isAdmin && <Card className="admin-login"><div className="section-title"><div className="title-icon"><LockKeyhole size={18} /></div><div><span className="eyebrow">ISCAE</span><h2>{t.adminTitle}</h2></div><button type="button" className="icon-button" onClick={() => setAdminPromptOpen(false)} aria-label={t.adminBack}><X size={17} /></button></div><label><span>{t.emailLabel}</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></label><label><span>{t.passwordLabel}</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }} autoComplete="current-password" /></label>{authError && <div className="inline-error"><Info size={16} />{authError}</div>}<div className="login-actions"><button type="button" className="button button-primary" onClick={handleAdminLogin} disabled={authBusy}>{authBusy ? "…" : t.adminSubmit}</button><button type="button" className="button button-secondary" onClick={() => setAdminPromptOpen(false)}>{t.adminBack}</button></div></Card>}
+      {mode === "results" && isAdmin && <AdminDashboard survey={survey} questions={questions} setQuestions={setQuestions} lang={lang} t={t} loadResults={loadResults} results={results} participants={participants} handleSignOut={handleSignOut} handleBackToSurvey={() => setMode("form")} teamMembers={teamMembers} setTeamMembers={setTeamMembers} />}
+      {mode === "form" && <TeamSection members={teamMembers} lang={lang} />}
+    </main>
+    <footer className="site-footer"><div className="footer-brand"><img src="/iscae-official-logo.jpeg" alt="شعار المعهد" /><span><strong>{t.institute}</strong><small>{t.footer}</small></span></div><div className="footer-credit"><span>{t.developedBy}</span><b>MDA</b></div></footer>
+  </div>;
 }
-
-export default App;
