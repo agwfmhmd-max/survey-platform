@@ -32,8 +32,11 @@ input:focus, textarea:focus, select:focus { border-color: #1b4e8c; box-shadow: 0
 .brand-button strong { max-width: 520px; font-size: 13px; font-weight: 750; letter-spacing: -.01em; }
 .brand-button small { margin-top: 3px; color: #b9c9df; font-size: 11px; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
-.language-switcher, .header-admin-button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; padding: 9px 13px; color: #fff; background: rgba(255,255,255,.08); font-size: 12px; font-weight: 700; transition: .2s ease; }
-.language-switcher:hover, .header-admin-button:hover { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.15); transform: translateY(-1px); }
+.language-switcher, .header-admin-button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; border: 1px solid rgba(255,255,255,.24); border-radius: 13px; padding: 7px 11px; color: #fff; background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.05)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(0,0,0,.12); font-size: 11px; font-weight: 700; transition: .2s ease; }
+.language-switcher:hover, .header-admin-button:hover { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.2); transform: translateY(-1px); }
+.language-switcher-icon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 9px; color: #0b1e39; background: #fff; }
+.language-current { color: #fff; font-weight: 850; letter-spacing: .08em; }
+.language-next { color: #cfe0f3; font-weight: 650; }
 
 .page-wrap { width: min(1180px, calc(100% - 40px)); min-height: calc(100vh - 140px); margin: 0 auto; padding: 56px 0 72px; }
 .loading-state { min-height: 300px; display: flex; align-items: center; justify-content: center; gap: 12px; color: #5b687b; font-size: 14px; }
@@ -114,7 +117,10 @@ input:focus, textarea:focus, select:focus { border-color: #1b4e8c; box-shadow: 0
 .privacy-note { display: flex; align-items: flex-start; gap: 8px; justify-content: center; margin: 20px auto 0; color: #8793a5; font-size: 11px; line-height: 1.6; text-align: center; }
 .privacy-note svg { flex: 0 0 auto; margin-top: 2px; }
 
-.success-screen { max-width: 640px; margin: 55px auto; padding: 60px 30px; border: 1px solid #cde8d9; border-radius: 26px; background: linear-gradient(160deg, #fff 0%, #f0fbf5 100%); text-align: center; box-shadow: 0 20px 50px rgba(29,139,98,.1); }
+.success-screen, .already-submitted-screen { max-width: 640px; margin: 55px auto; padding: 60px 30px; border: 1px solid #cde8d9; border-radius: 26px; background: linear-gradient(160deg, #fff 0%, #f0fbf5 100%); text-align: center; box-shadow: 0 20px 50px rgba(29,139,98,.1); }
+.already-submitted-screen { border-color: #cbdced; background: linear-gradient(160deg, #fff 0%, #f3f8fd 100%); box-shadow: 0 20px 50px rgba(27,78,140,.08); }
+.already-submitted-icon { width: 72px; height: 72px; display: grid; place-items: center; margin: 0 auto 22px; border-radius: 50%; color: #1b4e8c; background: #eaf2fb; box-shadow: 0 0 0 10px rgba(27,78,140,.08); }
+.already-submitted-screen h1 { margin: 12px 0 10px; color: #0b1e39; font-family: Georgia, "Times New Roman", serif; font-size: clamp(26px, 4vw, 38px); }
 .success-icon { width: 82px; height: 82px; display: grid; place-items: center; margin: 0 auto 25px; border-radius: 50%; color: #fff; background: #1d8b62; box-shadow: 0 0 0 12px rgba(29,139,98,.1), 0 15px 30px rgba(29,139,98,.22); animation: success-pop .5s ease-out; }
 @keyframes success-pop { from { transform: scale(.65); opacity: .2; } to { transform: scale(1); opacity: 1; } }
 .success-screen h1 { margin: 12px 0 10px; color: #0b1e39; font-family: Georgia, "Times New Roman", serif; font-size: clamp(28px, 4vw, 42px); }
@@ -207,10 +213,11 @@ input:focus, textarea:focus, select:focus { border-color: #1b4e8c; box-shadow: 0
 .team-heading h2 { margin: 4px 0 5px; color: #0b1e39; font-family: Georgia, "Times New Roman", serif; font-size: 23px; }
 .team-heading p { margin: 0; color: #8793a5; font-size: 12px; }
 .team-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.team-member-card { position: relative; display: flex; align-items: center; gap: 11px; min-width: 0; border: 1px solid #e0e8f1; border-radius: 15px; padding: 14px; background: rgba(255,255,255,.92); transition: .2s ease; }
+.team-member-card { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 88px; overflow: hidden; border: 1px solid #dce7f1; border-radius: 18px; padding: 16px; background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(247,251,255,.94)); box-shadow: 0 9px 24px rgba(11,30,57,.045); transition: .25s ease; }
+.team-member-card::after { content: ""; position: absolute; width: 72px; height: 72px; right: -28px; bottom: -31px; border-radius: 50%; background: rgba(77,155,224,.1); }
 .team-member-card:hover { border-color: #9eb9d8; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(27,78,140,.1); }
 .member-avatar-wrap { position: relative; flex: 0 0 auto; }
-.member-avatar, .member-avatar-placeholder { width: 49px; height: 49px; display: grid; place-items: center; border-radius: 14px; color: #1b4e8c; background: #eaf2fb; }
+.member-avatar, .member-avatar-placeholder { width: 58px; height: 58px; display: grid; place-items: center; border: 3px solid #fff; border-radius: 17px; color: #1b4e8c; background: linear-gradient(145deg, #eaf2fb, #d8e9f8); box-shadow: 0 6px 14px rgba(27,78,140,.14); }
 .member-avatar { object-fit: cover; }
 .member-status-dot { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #1d8b62; }
 .member-copy { min-width: 0; flex: 1; }
@@ -263,6 +270,8 @@ input:focus, textarea:focus, select:focus { border-color: #1b4e8c; box-shadow: 0
   .header-inner { min-height: 68px; gap: 10px; }
   .brand-mark { width: 34px; height: 34px; border-radius: 10px; }
   .brand-button strong { max-width: 220px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .language-next { display: none; }
+  .language-switcher { gap: 6px; padding-inline: 8px; }
   .brand-button small { max-width: 220px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
   .language-switcher, .header-admin-button { padding: 8px 9px; font-size: 10px; }
   .header-admin-button { display: none; }

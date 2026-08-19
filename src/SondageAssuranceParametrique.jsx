@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CloudRain, Eye, EyeOff, Globe2, GripVertical, ImagePlus, Info, LockKeyhole, LogOut, Pencil, Plus, RefreshCw, Save, ShieldCheck, Sprout, Trash2, TrendingUp, UserPlus, Users, UsersRound, X } from "lucide-react";
+import { BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudRain, Eye, EyeOff, Globe2, GripVertical, ImagePlus, Info, Languages, LockKeyhole, LogOut, Pencil, Plus, RefreshCw, Save, ShieldCheck, Sprout, Trash2, TrendingUp, UserPlus, Users, UsersRound, X } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import TeamSection from "./components/TeamSection.jsx";
 
@@ -69,9 +69,11 @@ const T = {
     retry: "Réessayer",
     errorLoad: "Une erreur est survenue lors du chargement de l’enquête.",
     errorSubmit: "Une erreur est survenue lors de l’envoi. Veuillez réessayer.",
-    duplicate: "Vous avez déjà répondu à ce sondage.",
+    duplicate: "Votre participation est déjà enregistrée. Une seule réponse est autorisée pour ce sondage.",
+    alreadySubmittedTitle: "Participation déjà enregistrée",
+    alreadySubmittedText: "Vous avez déjà envoyé votre réponse à ce sondage. Il n’est pas possible d’envoyer une seconde réponse.",
     thanksTitle: "Merci pour votre participation !",
-    thanksText: "Votre réponse a été enregistrée avec succès et contribuera à cette étude académique.",
+    thanksText: "Votre réponse a été enregistrée avec succès. Merci pour votre contribution à cette étude académique.",
     backHome: "Retour à l’accueil",
     newResponse: "Répondre à nouveau",
     submittedLock: "Votre participation est déjà enregistrée sur cet appareil. Une seule réponse est autorisée.",
@@ -136,7 +138,7 @@ const T = {
     unknownError: "Une erreur est survenue.",
     footer: "Étude de faisabilité de l’assurance paramétrique contre les risques climatiques en Mauritanie · ISCAE",
     developedBy: "Développé par MDA",
-    confirmDelete: "Supprimer définitivement cette question ? Si elle est déjà utilisée dans des réponses, elle sera désactivée à la place.",
+    confirmDelete: "Supprimer définitivement cette question et toutes ses options ? Les réponses historiques liées à cette question seront également supprimées.",
     yes: "Oui",
     no: "Non",
     maybe: "Peut-être",
@@ -175,9 +177,11 @@ const T = {
     retry: "إعادة المحاولة",
     errorLoad: "حدث خطأ أثناء تحميل الاستبيان.",
     errorSubmit: "حدث خطأ أثناء الإرسال. حاول مجددًا.",
-    duplicate: "لقد أجبتم عن هذا الاستبيان من قبل.",
+    duplicate: "تم تسجيل مشاركتكم من قبل. يُسمح بإجابة واحدة فقط في هذا الاستبيان.",
+    alreadySubmittedTitle: "تم تسجيل مشاركتكم مسبقًا",
+    alreadySubmittedText: "لقد أرسلتم إجابتكم عن هذا الاستبيان من قبل، ولا يمكن إرسال إجابة ثانية.",
     thanksTitle: "شكرًا لمشاركتكم!",
-    thanksText: "تم تسجيل إجابتكم بنجاح وستساهم في هذه الدراسة الأكاديمية.",
+    thanksText: "تم تسجيل إجابتكم بنجاح. نشكركم على مساهمتكم في هذه الدراسة الأكاديمية.",
     backHome: "العودة إلى الصفحة الرئيسية",
     newResponse: "الإجابة مجددًا",
     submittedLock: "تم تسجيل مشاركتكم على هذا الجهاز. يُسمح بإجابة واحدة فقط.",
@@ -242,7 +246,7 @@ const T = {
     unknownError: "حدث خطأ غير متوقع.",
     footer: "دراسة جدوى التأمين البارامتري ضد المخاطر المناخية في موريتانيا · المعهد العالي للمحاسبة وإدارة المؤسسات",
     developedBy: "Développé par MDA",
-    confirmDelete: "هل تريد حذف هذا السؤال نهائيًا؟ إذا كان مستخدمًا في إجابات سابقة فسيتم تعطيله بدلًا من ذلك.",
+    confirmDelete: "هل تريد حذف هذا السؤال وجميع خياراته نهائيًا؟ سيتم حذف الإجابات التاريخية المرتبطة بهذا السؤال أيضًا.",
     yes: "نعم",
     no: "لا",
     maybe: "ربما",
@@ -431,12 +435,14 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
     if (!window.confirm(t.confirmDelete)) return;
     setAdminError(null);
     try {
-      // Soft-delete by design: keeping the row protects existing answers and
-      // preserves the research audit trail while removing it from the public form.
-      const { error } = await supabase.from("survey_questions").update({ active: false }).eq("id", q.id);
-      if (error) throw error;
+      const { error: answersError } = await supabase.from("survey_answers").delete().eq("question_id", q.id);
+      if (answersError && !String(answersError.message || "").toLowerCase().includes("does not exist")) throw answersError;
+      const { error: optionsError } = await supabase.from("survey_options").delete().eq("question_id", q.id);
+      if (optionsError) throw optionsError;
+      const { error: questionError } = await supabase.from("survey_questions").delete().eq("id", q.id);
+      if (questionError) throw questionError;
       await reloadQuestions();
-    } catch (error) { console.error("[survey-admin-delete]", error); setAdminError(error?.message || t.unknownError); }
+    } catch (error) { console.error("[survey-admin-hard-delete]", error); setAdminError(error?.message || t.unknownError); }
   };
 
   const moveQuestion = async (q, direction) => {
@@ -594,9 +600,16 @@ export default function SondageStandalone() {
       const { data: surveyRow, error: surveyError } = await supabase.from("surveys").select("id, slug, title_ar, title_fr, active").eq("slug", SURVEY_SLUG).eq("active", true).single();
       if (surveyError || !surveyRow) throw surveyError || new Error("SURVEY_NOT_FOUND");
       setSurvey(surveyRow);
+      const respondentId = getRespondentId();
+      const { data: previousResponse, error: previousResponseError } = await supabase.from("survey_responses").select("id").eq("survey_id", surveyRow.id).eq("respondent_id", respondentId).limit(1).maybeSingle();
+      if (!previousResponseError && previousResponse?.id) {
+        try { window.localStorage.setItem(SUBMITTED_STORAGE_KEY, "true"); } catch (storageError) { console.warn("[survey-submission-storage]", storageError); }
+        setSubmitted(true);
+      }
       const { data: questionRows, error: questionError } = await supabase.from("survey_questions").select("id, question_ar, question_fr, question_type, required, sort_order, survey_options(id, label_ar, label_fr, value, sort_order)").eq("survey_id", surveyRow.id).eq("active", true).order("sort_order", { ascending: true });
       if (questionError) throw questionError;
       setQuestions((questionRows || []).map((q) => ({ ...q, options: (q.survey_options || []).slice().sort((a, b) => a.sort_order - b.sort_order) })));
+      setError(null);
     } catch (loadError) {
       console.error("[survey-load]", loadError);
       setError(T[lang].errorLoad);
@@ -658,9 +671,9 @@ export default function SondageStandalone() {
       const payload = questions.flatMap((q) => { const value = answers[q.id]; const values = Array.isArray(value) ? value : [value]; return values.filter((item) => item !== undefined && item !== null && String(item).trim() !== "").map((item) => { const option = q.options.find((o) => o.id === item); return { question_id: q.id, answer_value: option?.value ?? String(item), answer_text: option ? oText(option) : String(item) }; }); });
       const { data: rpcResponseId, error: rpcError } = await supabase.rpc("submit_survey_response", { p_survey_id: survey.id, p_respondent_id: respondentId, p_answers: payload });
       if (!rpcError && rpcResponseId) { markSubmissionComplete(); return; }
-      if (String(rpcError?.message || "").includes("DUPLICATE_RESPONSE")) { setError(t.duplicate); return; }
+      if (String(rpcError?.message || "").includes("DUPLICATE_RESPONSE")) { markSubmissionComplete(); setError(t.duplicate); return; }
       const { error: responseError } = await supabase.from("survey_responses").insert({ id: responseId, survey_id: survey.id, respondent_id: respondentId });
-      if (responseError) { if (String(responseError.message || "").toLowerCase().includes("duplicate")) { setError(t.duplicate); return; } throw responseError; }
+      if (responseError) { if (String(responseError.message || "").toLowerCase().includes("duplicate")) { markSubmissionComplete(); setError(t.duplicate); return; } throw responseError; }
       const { error: answersError } = await supabase.from("survey_answers").insert(payload.map((answer) => ({ response_id: responseId, ...answer })));
       if (answersError) { await supabase.from("survey_responses").delete().eq("id", responseId); throw answersError; }
             markSubmissionComplete();
@@ -683,15 +696,16 @@ export default function SondageStandalone() {
   const handleSignOut = async () => { try { await supabase.auth.signOut(); } catch (signOutError) { console.error("[admin-signout]", signOutError); } setIsAdmin(false); setSession(null); setMode("form"); };
 
   return <div dir={dir} className="app-shell">
-    <header className="site-header"><div className="header-inner"><button type="button" className="brand-button" onClick={handleTitleClick} aria-label="ISCAE"><span className="brand-mark institute-logo"><img src="/iscae-official-logo.jpeg" alt="شعار المعهد" /></span><span><strong>{t.institute}</strong><small>{t.kicker}</small></span></button><div className="header-actions"><button type="button" className="language-switcher" onClick={() => setLang((current) => current === "fr" ? "ar" : "fr")}><Globe2 size={16} /><span>{lang === "fr" ? "العربية" : "Français"}</span></button>{isAdmin && <button type="button" className="header-admin-button" onClick={() => setMode("results")}><BarChart3 size={15} />{t.dashboard}</button>}</div></div></header>
+    <header className="site-header"><div className="header-inner"><button type="button" className="brand-button" onClick={handleTitleClick} aria-label="ISCAE"><span className="brand-mark institute-logo"><img src="/iscae-official-logo.jpeg" alt="شعار المعهد" /></span><span><strong>{t.institute}</strong><small>{t.kicker}</small></span></button><div className="header-actions"><button type="button" className="language-switcher" onClick={() => setLang((current) => current === "fr" ? "ar" : "fr")} aria-label={lang === "fr" ? "Changer la langue vers l’arabe" : "تغيير اللغة إلى الفرنسية"}><span className="language-switcher-icon"><Languages size={16} /></span><span className="language-current">{lang === "fr" ? "FR" : "AR"}</span><span className="language-next">{lang === "fr" ? "العربية" : "Français"}</span><ChevronDown size={13} /></button>{isAdmin && <button type="button" className="header-admin-button" onClick={() => setMode("results")}><BarChart3 size={15} />{t.dashboard}</button>}</div></div></header>
     <main className="page-wrap">
       {loadingSurvey && <div className="loading-state"><span className="spinner" />{t.loading}</div>}
-      {!loadingSurvey && error && !currentQuestion && <ErrorNotice message={error} onRetry={loadSurvey} lang={lang} />}
+      {!loadingSurvey && error && !currentQuestion && !submitted && <ErrorNotice message={error} onRetry={loadSurvey} lang={lang} />}
+      {!loadingSurvey && error && !currentQuestion && submitted && <section className="already-submitted-screen"><div className="already-submitted-icon"><CheckCircle2 size={30} /></div><span className="eyebrow">{t.alreadySubmittedTitle}</span><h1>{t.alreadySubmittedTitle}</h1><p>{t.alreadySubmittedText}</p><div className="submission-lock"><LockKeyhole size={15} />{t.submittedLock}</div></section>}
       {!loadingSurvey && mode === "form" && !submitted && <>
         {!started && <section className="hero-section"><div className="hero-copy"><span className="academic-badge"><Sprout size={15} />{t.badge}</span><h1>{t.title}</h1><p className="hero-subtitle">{t.subtitle}</p><p className="hero-intro">{t.intro}</p><div className="hero-meta"><span><ClipboardList size={16} />{questions.length} {t.questionsCount}</span><span><CloudRain size={16} />{t.duration}</span></div><button type="button" className="button button-primary hero-cta" disabled={!questions.length} onClick={() => { setStarted(true); setCurrentStep(0); }}>{t.start}<span className="directional-icon">{lang === "ar" ? <ChevronLeft size={19} /> : <ChevronRight size={19} />}</span></button></div><div className="hero-visual"><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="visual-card"><div className="visual-icon project-logo-wrap"><img src="/iscae-parametric-logo.svg" alt="شعار فكرة المشروع" /></div><span>{lang === "ar" ? "المخاطر المناخية" : "Risques climatiques"}</span><small>{lang === "ar" ? "الزراعة · المواشي · التأمين" : "Agriculture · élevage · assurance"}</small></div><div className="visual-pulse"><ShieldCheck size={20} /></div></div></section>}
         {started && currentQuestion && <section className="survey-flow"><div className="survey-topline"><div><span className="eyebrow">{t.question} {currentStep + 1} {t.of} {questions.length}</span><strong>{progress}%</strong></div><span>{t.progress}</span></div><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><Card className="question-card"><div className="question-card-head"><span className="question-number">{String(currentStep + 1).padStart(2, "0")}</span><div><span className="question-kicker">{t.question} {currentStep + 1}</span><span className={`question-badge ${currentQuestion.required ? "required" : "optional"}`}>{currentQuestion.required ? t.required : t.optional}</span></div></div><h2>{qText(currentQuestion)}</h2>{currentQuestion.question_type === "text" && <textarea value={answers[currentQuestion.id] ?? ""} onChange={(e) => updateAnswer(currentQuestion.id, e.target.value)} placeholder={t.textPlaceholder} rows={6} autoFocus />}{currentQuestion.question_type === "number" && <input type="number" inputMode="numeric" value={answers[currentQuestion.id] ?? ""} onChange={(e) => updateAnswer(currentQuestion.id, e.target.value)} placeholder={t.numberPlaceholder} autoFocus />}{currentQuestion.question_type === "single_choice" && <div className="choices-grid">{currentQuestion.options.map((option) => <ChoiceCard key={option.id} option={option} selected={answers[currentQuestion.id] === option.id} label={oText(option)} onClick={() => updateAnswer(currentQuestion.id, option.id)} />)}</div>}{currentQuestion.question_type === "multiple_choice" && <div className="choices-grid">{currentQuestion.options.map((option) => { const selected = Array.isArray(answers[currentQuestion.id]) && answers[currentQuestion.id].includes(option.id); return <ChoiceCard key={option.id} option={option} multiple selected={selected} label={oText(option)} onClick={() => { const current = Array.isArray(answers[currentQuestion.id]) ? answers[currentQuestion.id] : []; updateAnswer(currentQuestion.id, selected ? current.filter((id) => id !== option.id) : [...current, option.id]); }} />; })}</div>}{error && <div className="inline-error" role="alert"><Info size={16} />{error}</div>}</Card><div className="survey-navigation"><button type="button" className="button button-secondary" onClick={handlePrevious} disabled={currentStep === 0}><span className="directional-icon">{lang === "ar" ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</span>{t.previous}</button>{currentStep < questions.length - 1 ? <button type="button" className="button button-primary" onClick={handleNext}>{t.next}<span className="directional-icon">{lang === "ar" ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}</span></button> : <button type="button" className="button button-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? t.submitting : t.submit}<CheckCircle2 size={17} /></button>}</div><p className="privacy-note"><LockKeyhole size={14} />{t.anonymous}</p></section>}
       </>}
-      {!loadingSurvey && mode === "form" && submitted && <section className="success-screen"><div className="success-icon"><Check size={35} strokeWidth={3} /></div><span className="eyebrow">{lang === "ar" ? "تم الإرسال بنجاح" : "Réponse enregistrée"}</span><h1>{t.thanksTitle}</h1><p>{t.thanksText}</p><div className="submission-lock"><LockKeyhole size={15} />{t.submittedLock}</div></section>}
+      {!loadingSurvey && mode === "form" && submitted && !error && <section className="success-screen"><div className="success-icon"><Check size={35} strokeWidth={3} /></div><span className="eyebrow">{lang === "ar" ? "تم الإرسال بنجاح" : "Réponse enregistrée"}</span><h1>{t.thanksTitle}</h1><p>{t.thanksText}</p><div className="submission-lock"><LockKeyhole size={15} />{t.submittedLock}</div></section>}
       {adminPromptOpen && !isAdmin && <Card className="admin-login"><div className="section-title"><div className="title-icon"><LockKeyhole size={18} /></div><div><span className="eyebrow">ISCAE</span><h2>{t.adminTitle}</h2></div><button type="button" className="icon-button" onClick={() => setAdminPromptOpen(false)} aria-label={t.adminBack}><X size={17} /></button></div><label><span>{t.emailLabel}</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></label><label><span>{t.passwordLabel}</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }} autoComplete="current-password" /></label>{authError && <div className="inline-error"><Info size={16} />{authError}</div>}<div className="login-actions"><button type="button" className="button button-primary" onClick={handleAdminLogin} disabled={authBusy}>{authBusy ? "…" : t.adminSubmit}</button><button type="button" className="button button-secondary" onClick={() => setAdminPromptOpen(false)}>{t.adminBack}</button></div></Card>}
       {mode === "results" && isAdmin && <AdminDashboard survey={survey} questions={questions} setQuestions={setQuestions} lang={lang} t={t} loadResults={loadResults} results={results} participants={participants} handleSignOut={handleSignOut} handleBackToSurvey={() => setMode("form")} teamMembers={teamMembers} setTeamMembers={setTeamMembers} />}
       {mode === "form" && <TeamSection members={teamMembers} lang={lang} />}
