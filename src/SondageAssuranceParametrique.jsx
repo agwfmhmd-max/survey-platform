@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudRain, Eye, EyeOff, Globe2, GripVertical, ImagePlus, Info, Languages, LockKeyhole, LogOut, Pencil, Plus, RefreshCw, Save, ShieldCheck, Sprout, Trash2, TrendingUp, UserPlus, Users, UsersRound, X } from "lucide-react";
+import { BarChart3, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudRain, Eye, EyeOff, Globe2, GripVertical, ImagePlus, Info, Languages, LockKeyhole, LogOut, Pencil, Plus, RefreshCw, Save, ShieldCheck, Sprout, Trash2, TrendingUp, UserPlus, Users, UsersRound, X } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import TeamSection from "./components/TeamSection.jsx";
 
@@ -26,6 +26,44 @@ const SURVEY_SLUG = "assurance-parametrique-2026";
 const SUBMITTED_STORAGE_KEY = `survey_submitted_${SURVEY_SLUG}`;
 const ADMIN_TRIGGER_CLICKS = 5;
 const ADMIN_TRIGGER_WINDOW_MS = 3000;
+// Mauritania uses a fixed UTC+0 offset year-round (no daylight saving), but we
+// still resolve everything through Intl with an explicit IANA zone so the
+// conversion from Supabase's UTC timestamps stays correct if that ever changes.
+const APP_TIMEZONE = "Africa/Nouakchott";
+
+function localDateKeyFormatter() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+}
+function localHourFormatter() {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: APP_TIMEZONE, hour: "2-digit", hour12: false });
+}
+function toLocalDateKey(isoOrDate) {
+  const date = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(date.getTime())) return null;
+  return localDateKeyFormatter().format(date);
+}
+function toLocalHour(isoOrDate) {
+  const date = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(date.getTime())) return null;
+  const value = parseInt(localHourFormatter().format(date), 10);
+  return Number.isNaN(value) ? 0 : value % 24;
+}
+function shiftDateKey(dateKey, deltaDays) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  base.setUTCDate(base.getUTCDate() + deltaDays);
+  return `${base.getUTCFullYear()}-${String(base.getUTCMonth() + 1).padStart(2, "0")}-${String(base.getUTCDate()).padStart(2, "0")}`;
+}
+function formatDayLabel(dateKey, lang) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 12));
+  return new Intl.DateTimeFormat(lang === "ar" ? "ar" : "fr-FR", { timeZone: "UTC", day: "2-digit", month: "short" }).format(date);
+}
+function formatFullDayLabel(dateKey, lang) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 12));
+  return new Intl.DateTimeFormat(lang === "ar" ? "ar" : "fr-FR", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(date);
+}
 
 function cleanVisibleText(value) {
   return String(value || "").replace(/[?؟]/g, "").replace(/\s{2,}/g, " ").trim();
@@ -147,6 +185,28 @@ const T = {
     no: "Non",
     maybe: "Peut-être",
     other: "Autre",
+    stats: "Statistiques",
+    statsTitle: "Statistiques des participants",
+    statsSubtitle: "Suivez en temps réel la progression des réponses complétées à ce sondage.",
+    participantsCompleted: "Participants ayant terminé",
+    statToday: "Aujourd’hui",
+    statWeek: "Cette semaine",
+    statAverage: "Moyenne quotidienne",
+    statBestDay: "Meilleur jour",
+    rangeToday: "Aujourd’hui",
+    rangeYesterday: "Hier",
+    range7d: "7 derniers jours",
+    range30d: "30 derniers jours",
+    rangeAll: "Toutes les réponses",
+    pickDate: "Sélectionner une date",
+    totalCompleted: "Total complétés",
+    perDayChart: "Participants complétés par jour",
+    perHourChart: "Participants complétés par heure",
+    evolutionChart: "Évolution des réponses",
+    noStatsData: "Aucune réponse complétée pour cette période.",
+    loadingStats: "Chargement des statistiques…",
+    statsError: "Impossible de charger les statistiques pour le moment.",
+    hourLabel: "h",
   },
   ar: {
     dir: "rtl",
@@ -255,6 +315,28 @@ const T = {
     no: "لا",
     maybe: "ربما",
     other: "آخر",
+    stats: "الإحصائيات",
+    statsTitle: "إحصائيات المشاركين",
+    statsSubtitle: "تابع مباشرةً تطور عدد المشاركين الذين أكملوا هذا الاستبيان.",
+    participantsCompleted: "المشاركون الذين أكملوا الاستبيان",
+    statToday: "اليوم",
+    statWeek: "هذا الأسبوع",
+    statAverage: "المعدل اليومي",
+    statBestDay: "أفضل يوم",
+    rangeToday: "اليوم",
+    rangeYesterday: "أمس",
+    range7d: "آخر 7 أيام",
+    range30d: "آخر 30 يومًا",
+    rangeAll: "جميع الإجابات",
+    pickDate: "اختر تاريخًا",
+    totalCompleted: "إجمالي المكتملين",
+    perDayChart: "المشاركون المكتملون حسب اليوم",
+    perHourChart: "المشاركون المكتملون حسب الساعة",
+    evolutionChart: "تطور عدد المشاركين",
+    noStatsData: "لا توجد إجابات مكتملة خلال هذه الفترة.",
+    loadingStats: "جارٍ تحميل الإحصائيات…",
+    statsError: "تعذّر تحميل الإحصائيات حاليًا.",
+    hourLabel: "س",
   },
 };
 
@@ -314,8 +396,179 @@ function ResultChart({ data, emptyLabel }) {
   return <div className="result-bars">{data.map((item, index) => <div className="result-bar-row" key={`${item.name}-${index}`}><div className="result-bar-label"><span>{item.name || "—"}</span><strong>{item.percentage ?? 0}%</strong></div><div className="result-bar-track"><span style={{ width: `${Math.max(4, ((Number(item.value) || 0) / maxValue) * 100)}%`, background: PIE_COLORS[index % PIE_COLORS.length] }} /></div></div>)}</div>;
 }
 
+// Lightweight, dependency-free responsive bar chart used for the participant
+// statistics dashboard (daily / hourly completion counts). It renders as an
+// SVG sized by viewBox so it scales fluidly, and only scrolls horizontally
+// inside its own box (never the page) once there are too many bars to fit.
+function TimeSeriesChart({ data, emptyLabel, height = 200, barColor = COLORS.blue }) {
+  const hasData = data && data.some((item) => Number(item.value) > 0);
+  if (!data || !data.length || !hasData) {
+    return <div className="empty-state compact"><BarChart3 size={22} /><p>{emptyLabel}</p></div>;
+  }
+  const max = Math.max(...data.map((item) => Number(item.value) || 0), 1);
+  const slot = 40;
+  const barWidth = 20;
+  const topPad = 22;
+  const bottomPad = 26;
+  const chartHeight = height;
+  const width = Math.max(data.length * slot, 260);
+  return (
+    <div className="chart-scroll">
+      <svg viewBox={`0 0 ${width} ${chartHeight}`} className="ts-chart" role="img" aria-label="chart" preserveAspectRatio="xMinYMid meet">
+        <line x1="0" y1={chartHeight - bottomPad} x2={width} y2={chartHeight - bottomPad} stroke={COLORS.border} strokeWidth="1" />
+        {data.map((item, index) => {
+          const x = index * slot + (slot - barWidth) / 2;
+          const usableHeight = chartHeight - topPad - bottomPad;
+          const barHeight = Math.max(2, (Number(item.value) / max) * usableHeight);
+          const y = chartHeight - bottomPad - barHeight;
+          return (
+            <g key={`${item.label}-${index}`}>
+              <rect x={x} y={y} width={barWidth} height={barHeight} rx={5} fill={barColor} opacity={item.value ? 1 : 0.25} />
+              {item.value > 0 && <text x={x + barWidth / 2} y={y - 6} textAnchor="middle" fontSize="10" fontWeight="700" fill={COLORS.ink}>{item.value}</text>}
+              <text x={x + barWidth / 2} y={chartHeight - 9} textAnchor="middle" fontSize="9" fill={COLORS.muted}>{item.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+const STATS_RANGE_OPTIONS = ["today", "yesterday", "7d", "30d", "all"];
+
+function ParticipantStatsPanel({ lang, t, timestamps, loading, error, participants }) {
+  const [range, setRange] = useState("7d");
+  const [customDate, setCustomDate] = useState("");
+
+  const todayKey = useMemo(() => toLocalDateKey(new Date()), []);
+
+  const entries = useMemo(() => (timestamps || [])
+    .map((iso) => ({ iso, dateKey: toLocalDateKey(iso), hour: toLocalHour(iso) }))
+    .filter((entry) => entry.dateKey), [timestamps]);
+
+  const todayCount = useMemo(() => entries.filter((entry) => entry.dateKey === todayKey).length, [entries, todayKey]);
+  const weekStartKey = useMemo(() => shiftDateKey(todayKey, -6), [todayKey]);
+  const weekCount = useMemo(() => entries.filter((entry) => entry.dateKey >= weekStartKey && entry.dateKey <= todayKey).length, [entries, weekStartKey, todayKey]);
+
+  const activeDateKey = customDate || null;
+  const isSingleDay = range === "today" || range === "yesterday" || !!activeDateKey;
+
+  const rangeBounds = useMemo(() => {
+    if (activeDateKey) return { start: activeDateKey, end: activeDateKey };
+    if (range === "today") return { start: todayKey, end: todayKey };
+    if (range === "yesterday") { const y = shiftDateKey(todayKey, -1); return { start: y, end: y }; }
+    if (range === "7d") return { start: shiftDateKey(todayKey, -6), end: todayKey };
+    if (range === "30d") return { start: shiftDateKey(todayKey, -29), end: todayKey };
+    return { start: null, end: null };
+  }, [range, todayKey, activeDateKey]);
+
+  const filteredEntries = useMemo(() => {
+    if (!rangeBounds.start) return entries;
+    return entries.filter((entry) => entry.dateKey >= rangeBounds.start && entry.dateKey <= rangeBounds.end);
+  }, [entries, rangeBounds]);
+
+  const dailyCounts = useMemo(() => {
+    const map = new Map();
+    filteredEntries.forEach((entry) => map.set(entry.dateKey, (map.get(entry.dateKey) || 0) + 1));
+    let keys;
+    if (rangeBounds.start) {
+      keys = [];
+      let cursor = rangeBounds.start;
+      while (cursor <= rangeBounds.end) { keys.push(cursor); cursor = shiftDateKey(cursor, 1); }
+    } else {
+      keys = Array.from(map.keys()).sort();
+    }
+    return keys.map((key) => ({ key, label: formatDayLabel(key, lang), value: map.get(key) || 0 }));
+  }, [filteredEntries, rangeBounds, lang]);
+
+  const hourlyCounts = useMemo(() => {
+    const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, label: `${String(hour).padStart(2, "0")}${t.hourLabel}`, value: 0 }));
+    filteredEntries.forEach((entry) => { buckets[entry.hour].value += 1; });
+    return buckets;
+  }, [filteredEntries, t.hourLabel]);
+
+  const totalInRange = filteredEntries.length;
+  const daysInRange = dailyCounts.length || 1;
+  const dailyAverage = Math.round((totalInRange / daysInRange) * 10) / 10;
+  const bestDay = dailyCounts.reduce((best, item) => (!best || item.value > best.value ? item : best), null);
+
+  const rangeLabels = { today: t.rangeToday, yesterday: t.rangeYesterday, "7d": t.range7d, "30d": t.range30d, all: t.rangeAll };
+
+  return (
+    <div className="stats-panel">
+      <div className="stats-headline-grid">
+        <Card className="stats-headline-card">
+          <div className="stats-headline-icon"><Users size={26} /></div>
+          <div>
+            <span className="eyebrow">{t.participantsCompleted}</span>
+            <div className="stats-headline-value">{participants}</div>
+          </div>
+        </Card>
+        <div className="stats-mini-grid">
+          <StatCard icon={Calendar} label={t.statToday} value={todayCount} tone="green" />
+          <StatCard icon={TrendingUp} label={t.statWeek} value={weekCount} tone="blue" />
+          <StatCard icon={BarChart3} label={t.statAverage} value={dailyAverage} tone="gold" />
+          <StatCard icon={CheckCircle2} label={t.statBestDay} value={bestDay ? `${formatDayLabel(bestDay.key, lang)} · ${bestDay.value}` : "—"} tone="navy" />
+        </div>
+      </div>
+
+      <Card className="stats-toolbar-card">
+        <div className="stats-toolbar">
+          <div className="stats-range-pills">
+            {STATS_RANGE_OPTIONS.map((option) => (
+              <button
+                type="button"
+                key={option}
+                className={!activeDateKey && range === option ? "is-active" : ""}
+                onClick={() => { setRange(option); setCustomDate(""); }}
+              >
+                {rangeLabels[option]}
+              </button>
+            ))}
+          </div>
+          <label className="stats-date-picker">
+            <span>{t.pickDate}</span>
+            <input type="date" value={customDate} max={todayKey} onChange={(e) => setCustomDate(e.target.value)} />
+          </label>
+        </div>
+      </Card>
+
+      {loading && <div className="loading-state compact"><span className="spinner" />{t.loadingStats}</div>}
+      {!loading && error && <div className="inline-error" role="alert"><Info size={16} />{error}</div>}
+
+      {!loading && !error && <>
+        {isSingleDay && rangeBounds.start && (
+          <Card className="stats-day-summary">
+            <span className="eyebrow">{formatFullDayLabel(rangeBounds.start, lang)}</span>
+            <div className="stats-headline-value">{t.totalCompleted} · {totalInRange}</div>
+          </Card>
+        )}
+
+        {!isSingleDay && (
+          <Card>
+            <h3 className="result-question">{t.perDayChart}</h3>
+            <TimeSeriesChart data={dailyCounts.map((d) => ({ label: d.label, value: d.value }))} emptyLabel={t.noStatsData} barColor={COLORS.blue} />
+          </Card>
+        )}
+
+        <Card>
+          <h3 className="result-question">{t.perHourChart}</h3>
+          <TimeSeriesChart data={hourlyCounts} emptyLabel={t.noStatsData} height={190} barColor={COLORS.green} />
+        </Card>
+
+        {!isSingleDay && dailyCounts.length > 1 && (
+          <Card>
+            <h3 className="result-question">{t.evolutionChart}</h3>
+            <TimeSeriesChart data={dailyCounts.map((d) => ({ label: d.label, value: d.value }))} emptyLabel={t.noStatsData} barColor={COLORS.gold} />
+          </Card>
+        )}
+      </>}
+    </div>
+  );
+}
+
 function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults, results, participants, handleSignOut, handleBackToSurvey, teamMembers, setTeamMembers }) {
-  const [tab, setTab] = useState("questions");
+  const [tab, setTab] = useState("stats");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [adminError, setAdminError] = useState(null);
@@ -323,6 +576,26 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
   const [weatherLocations, setWeatherLocations] = useState([]);
   const [editingMember, setEditingMember] = useState(null);
   const [memberForm, setMemberForm] = useState({ name_ar: "", name_fr: "", role_ar: "", role_fr: "", image_url: "", sort_order: 1, active: true });
+  const [responseTimestamps, setResponseTimestamps] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(null);
+
+  const loadResponseTimestamps = useCallback(async () => {
+    if (!survey?.id) return;
+    setStatsLoading(true); setStatsError(null);
+    try {
+      // Only the completion timestamp is fetched (no personal data), and only
+      // for the currently active survey — this stays lightweight even with a
+      // large number of responses.
+      const { data, error } = await supabase.from("survey_responses").select("created_at").eq("survey_id", survey.id);
+      if (error) throw error;
+      setResponseTimestamps((data || []).map((row) => row.created_at).filter(Boolean));
+    } catch (error) {
+      console.error("[survey-admin-stats]", error);
+      setStatsError(error?.message || t.statsError);
+    } finally { setStatsLoading(false); }
+  }, [survey, t.statsError]);
+  useEffect(() => { if (tab === "stats") loadResponseTimestamps(); }, [tab, loadResponseTimestamps]);
 
   const activeQuestions = questions.filter((q) => q.active).length;
   const duplicateQuestionIds = new Set();
@@ -523,13 +796,18 @@ function AdminDashboard({ survey, questions, setQuestions, lang, t, loadResults,
 
   const resultGroups = questions.map((question) => ({ question, data: (results || []).filter((row) => row.question_id === question.id).map((row) => ({ name: lang === "ar" ? row.option_label_ar : row.option_label_fr, value: row.response_count, percentage: row.percentage })) }));
   useEffect(() => { if (tab === "team") reloadTeamMembers().catch((error) => { console.error("[team-members-reload]", error); setAdminError(error?.message || t.unknownError); }); }, [reloadTeamMembers, tab, t.unknownError]);
-  const tabs = [["questions", t.questions], ["team", t.team], ["results", t.results], ["weather", t.weather]];
+  const tabs = [["stats", t.stats], ["questions", t.questions], ["team", t.team], ["results", t.results], ["weather", t.weather]];
 
   return <section className="admin-shell">
     <div className="admin-heading"><div><span className="eyebrow">{t.dashboard}</span><h2>{lang === "ar" ? "إدارة المنصة والنتائج" : "Gestion de la plateforme et des résultats"}</h2><p>{survey?.title_fr || SURVEY_SLUG}</p></div><div className="admin-actions"><button type="button" className="button button-secondary" onClick={handleBackToSurvey}><ChevronLeft size={16} />{t.backSurvey}</button><button type="button" className="button button-secondary" onClick={handleSignOut}><LogOut size={16} />{t.signOut}</button></div></div>
     <div className="stats-grid"><StatCard icon={Users} label={t.participants} value={participants} tone="blue" /><StatCard icon={ClipboardList} label={t.totalQuestions} value={questions.length} tone="navy" /><StatCard icon={CheckCircle2} label={t.activeQuestions} value={activeQuestions} tone="green" /><StatCard icon={TrendingUp} label={t.completion} value={completionRate} tone="gold" /></div>
-    <div className="admin-tabs">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{label}</button>)}</div>
-    {adminError && <div className="admin-error"><Info size={16} />{adminError}<button type="button" onClick={() => setAdminError(null)}><X size={15} /></button></div>}
+    <div className="admin-tabs" role="tablist">{tabs.map(([value, label]) => <button type="button" key={value} role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{label}</button>)}</div>
+    {adminError && <div className="admin-error"><Info size={16} />{adminError}<button type="button" onClick={() => setAdminError(null)} aria-label={t.cancel}><X size={15} /></button></div>}
+    {tab === "stats" && <div className="stats-tab-wrap">
+      <div className="section-title"><div className="title-icon"><BarChart3 size={18} /></div><div><span className="eyebrow">{t.stats}</span><h3>{t.statsTitle}</h3></div></div>
+      <p className="stats-subtitle">{t.statsSubtitle}</p>
+      <ParticipantStatsPanel lang={lang} t={t} timestamps={responseTimestamps} loading={statsLoading} error={statsError} participants={participants} />
+    </div>}
     {tab === "questions" && <div className="admin-content-grid">
             <Card className="question-editor"><div className="editor-title">
 <div><span className="eyebrow">{editing ? t.editQuestion : t.addQuestion}</span><h3>{editing ? t.editQuestion : t.addQuestion}</h3></div>{editing ? <button type="button" className="icon-button" onClick={reset} aria-label={t.cancel}><X size={17} /></button> : <button type="button" className="button button-quiet" onClick={seedDefaultQuestions} disabled={saving}><Sprout size={15} />{t.readyQuestions}</button>}</div>
